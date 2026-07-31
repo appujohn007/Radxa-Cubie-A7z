@@ -1,0 +1,21 @@
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
+index 0ea1687..31661da 100644
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
+@@ -2282,9 +2282,14 @@ static int rwnx_cfg80211_change_iface(struct wiphy *wiphy,
+        (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR)) {
+         struct rwnx_vif *vif_el;
+         list_for_each_entry(vif_el, &rwnx_hw->vifs, list) {
+-            // Check if data interface already exists
++            /*
++             * Monitor mode is allowed only with no active data VIFs. Ignore
++             * the monitor VIF itself and the dedicated P2P_DEVICE VIF, which
++             * is not a data interface and is treated like MONITOR here.
++             */
+             if ((vif_el != vif) &&
+-               (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR)) {
++               (RWNX_VIF_TYPE(vif_el) != NL80211_IFTYPE_MONITOR) &&
++               (RWNX_VIF_TYPE(vif_el) != NL80211_IFTYPE_P2P_DEVICE)) {
+                 wiphy_err(rwnx_hw->wiphy,
+                         "Monitor+Data interface support (MON_DATA) disabled\n");
+                 return -EIO;

@@ -1,17 +1,6 @@
-CFLAGS=-Wno-enum-int-mismatch make -C "src" -j4 BSP_TOP=bsp/ LICHEE_KERN_DIR=./ KBUILD_DEFCONFIG=bsp.config ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc KDEB_COMPRESS="xz" KDEB_CHANGELOG_DIST="unstable" DPKG_FLAGS=-d LOCALVERSION=-21-a733 KERNELRELEASE=5.15.147-21-a733 KDEB_PKGVERSION=5.15.147-21 modules
-make[1]: Entering directory '/workspaces/linux-a733/src'
-  CALL    scripts/atomic/check-atomics.sh
-  CALL    scripts/checksyscalls.sh
-  CC [M]  bsp/drivers/ve/cedar-ve/platforms/ve_plat_sun60iw2.o
-bsp/drivers/ve/cedar-ve/platforms/ve_plat_sun60iw2.c:20:10: fatal error: cedar_ve.h: No such file or directory
-   20 | #include "cedar_ve.h"
-      |          ^~~~~~~~~~~~
-compilation terminated.
-make[5]: *** [scripts/Makefile.build:289: bsp/drivers/ve/cedar-ve/platforms/ve_plat_sun60iw2.o] Error 1
-make[4]: *** [scripts/Makefile.build:552: bsp/drivers/ve/cedar-ve] Error 2
-make[3]: *** [scripts/Makefile.build:552: bsp/drivers/ve] Error 2
-make[2]: *** [scripts/Makefile.build:552: bsp/drivers] Error 2
-make[1]: *** [Makefile:1913: bsp] Error 2
-make[1]: *** Waiting for unfinished jobs....
-make[1]: Leaving directory '/workspaces/linux-a733/src'
-make: *** [Makefile.extra:38: build-modules] Error 2
+make[1]: warning: -j4 forced in makefile: resetting jobserver mode.
+make[2]: warning: -j4 forced in makefile: resetting jobserver mode.
+make[1]: warning: -j4 forced in makefile: resetting jobserver mode.
+WARNING: Symbol version dump "Module.symvers" is missing.
+         Modules may not have dependencies or modversions.
+         You may get many unresolved symbol warnings.

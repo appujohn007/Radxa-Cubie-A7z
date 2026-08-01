@@ -12,6 +12,8 @@ sudo cp aic8800_fdrv.ko \
 /lib/modules/$(uname -r)/extra/
 ```
 
+> Current patch note: only `aic8800_fdrv.ko` was rebuilt and needs to be replaced. `aic_load_fw.ko` remains unchanged.
+
 ---
 
 ## Update Module Database

@@ -25,11 +25,15 @@ Release: 2024_1119_06da8476
 
 ### Driver
 
-- Patched `rwnx_main.c`
-- Fixed monitor interface validation logic
-- Corrected VIF iteration
-- Ignored `NL80211_IFTYPE_P2P_DEVICE`
-- Preserved vendor driver architecture
+- Updated the monitor injection path in `rwnx_tx.c`
+- Added a safe monitor TX path that uses the VIF unknown TXQ instead of relying on peer-STA state
+- Added a radiotap iterator guard so malformed or unexpected radiotap data does not dereference a null field
+- Preserved the existing vendor driver architecture
+
+### Module packaging
+
+- Rebuilt and packaged `driver/aic8800_fdrv.ko`
+- `driver/aic_load_fw.ko` remains unchanged and was not rebuilt for this patch
 
 ### Firmware
 
@@ -70,9 +74,10 @@ source_patch/
 - Driver loads automatically at boot
 - Monitor interface can coexist with a managed interface
 - `CONFIG_RWNX_MON_DATA` is enabled
-- Rebuilt modules are:
-  - `aic8800_fdrv.ko`
-  - `aic_load_fw.ko`
+- Rebuilt module is:
+  - `driver/aic8800_fdrv.ko`
+- Unchanged module is:
+  - `driver/aic_load_fw.ko`
 - Verified runtime interface layout after reboot:
   - AIC8800: `wlan0` -> managed, `wlan1` -> monitor
   - MT7601U: `wlan2` -> managed

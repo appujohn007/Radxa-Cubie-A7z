@@ -2,6 +2,16 @@
 
 ## 2026-08-01
 
+### Monitor TX injection fix
+
+- Updated the monitor injection path in `rwnx_tx.c`
+- Switched monitor TX to the VIF unknown TXQ so injection no longer depends on peer-STA state
+- Added a radiotap iterator guard to avoid null-field dereferences during monitor injection
+- Replaced the packaged driver module at `driver/aic8800_fdrv.ko`
+- Left `driver/aic_load_fw.ko` unchanged because it was not rebuilt for this patch
+
+### Driver
+
 ### Driver
 
 - Verified AIC8800 USB driver rebuild succeeds with monitor mode support enabled
@@ -17,9 +27,9 @@
 
 ### Modules
 
-- Verified rebuilt modules:
+- Verified rebuilt module:
   - `aic8800_fdrv.ko`
-  - `aic_load_fw.ko`
+- Confirmed `aic_load_fw.ko` remains unchanged
 
 ### Runtime
 

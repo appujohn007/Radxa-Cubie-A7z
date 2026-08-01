@@ -26,25 +26,18 @@ which caused monitor interface creation to fail.
 
 ## Patch Applied
 
-Changed:
+The current patch updates the monitor injection path in:
 
 ```
-RWNX_VIF_TYPE(vif)
+drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
 ```
 
-to
+It changes the monitor TX path to:
 
-```
-RWNX_VIF_TYPE(vif_el)
-```
+- use the VIF unknown TXQ for monitor injection instead of assuming a peer STA context
+- guard the radiotap iterator before dereferencing fields
 
-Added exemption for
-
-```
-NL80211_IFTYPE_P2P_DEVICE
-```
-
-while validating monitor interface creation.
+This change is intentionally narrow and only affects the monitor TX/injection flow.
 
 ---
 
@@ -71,9 +64,10 @@ aarch64-linux-gnu-gcc
 ## Modules Built
 
 ```
-aic_load_fw.ko
 aic8800_fdrv.ko
 ```
+
+`aic_load_fw.ko` was not rebuilt for this patch and remains unchanged.
 
 ---
 

@@ -1,74 +1,27 @@
-# Installation
+# AIC8800 Driver Installation & Deployment Guide
 
-## Copy Modules
+## Deployment Instructions for Build A
 
-```bash
-sudo mkdir -p /lib/modules/$(uname -r)/extra
+1. Copy `aic8800_fdrv.ko` from `/workspaces/monitor-build-A-instrumentation/` to your target Radxa Cubie A7Z board.
 
-sudo cp aic_load_fw.ko \
-/lib/modules/$(uname -r)/extra/
+2. Unload any existing driver module:
+   ```bash
+   sudo rmmod aic8800_fdrv
+   ```
 
-sudo cp aic8800_fdrv.ko \
-/lib/modules/$(uname -r)/extra/
-```
+3. Load the Build A module:
+   ```bash
+   sudo insmod aic8800_fdrv.ko
+   ```
 
-> Current patch note: only `aic8800_fdrv.ko` was rebuilt and needs to be replaced. `aic_load_fw.ko` remains unchanged.
+4. Configure monitor mode:
+   ```bash
+   sudo iw dev wlan1 set type monitor
+   sudo ip link set wlan1 up
+   ```
 
----
-
-## Update Module Database
-
-```bash
-sudo depmod -a
-```
-
----
-
-## Firmware Path
-
-```bash
-sudo ln -sf \
-/lib/firmware/aic8800_fw/USB/aic8800D80 \
-/lib/firmware/aic8800D80
-```
-
----
-
-## Automatic Module Loading
-
-```bash
-echo -e "aic_load_fw\naic8800_fdrv" | \
-sudo tee /etc/modules-load.d/aic8800.conf
-```
-
----
-
-## Reboot
-
-```bash
-sudo reboot
-```
-
----
-
-## Verify
-
-```bash
-lsmod | grep aic
-```
-
-```bash
-iw dev
-```
-
-```bash
-sudo dmesg | grep AIC
-```
-
-Expected
-
-- aic_load_fw loaded
-- aic8800_fdrv loaded
-- wlan0 present
-- firmware uploaded successfully
-
+5. Monitor `dmesg` output during injection testing:
+   ```bash
+   sudo dmesg -w &
+   sudo aireplay-ng --test wlan1
+   ```

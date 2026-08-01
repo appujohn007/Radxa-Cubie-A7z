@@ -65,12 +65,22 @@ source_patch/
 
 ## Status
 
-- Driver builds successfully
-- Firmware loads successfully
-- Modules load automatically at boot
-- Firmware upload verified
-- Wi-Fi interface created successfully
-- Ready for monitor mode testing
+- Patched AIC8800 USB driver builds successfully
+- Firmware loads correctly
+- Driver loads automatically at boot
+- Monitor interface can coexist with a managed interface
+- `CONFIG_RWNX_MON_DATA` is enabled
+- Rebuilt modules are:
+  - `aic8800_fdrv.ko`
+  - `aic_load_fw.ko`
+- Verified runtime interface layout after reboot:
+  - AIC8800: `wlan0` -> managed, `wlan1` -> monitor
+  - MT7601U: `wlan2` -> managed
+- Managed Wi-Fi remains connected while the monitor interface exists
+- The previous interface-removal issue has been resolved
+- The earlier `RWNX_VIF_TYPE(vif_el)` fix remains included
+- The `NL80211_IFTYPE_P2P_DEVICE` exclusion remains included
+- Known remaining issue: MT7601U no longer reconnects automatically because its interface name changed after the AIC driver created `wlan1`; this is believed to be a NetworkManager configuration issue rather than a driver failure
 
 ---
 

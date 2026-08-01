@@ -13,7 +13,7 @@ index d0970cb..5d8753b 100644
  CONFIG_RWNX_MON_RXFILTER ?= n
  
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_txrxif.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_txrxif.c
-index b848421..1130853 100644
+index b848421..aaafccb 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_txrxif.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_txrxif.c
 @@ -266,24 +266,59 @@ void aicwf_bus_deinit(struct device *dev)
@@ -86,11 +86,127 @@ index b848421..1130853 100644
      aicwf_bus_txdata(usbdev->bus_if, skb);
  #endif
  }
+@@ -380,6 +415,8 @@ int aicwf_tasklet_rxframes(struct aicwf_rx_priv *rx_priv)
+ 	u8 *data = NULL;
+ 	u8_l *msg = NULL;
+ 
++    printk(KERN_ERR "MONDBG: [tasklet_rxframes] entered: rx_priv=%p\n", rx_priv);
++
+ 	while (1) {
+ 		//aicwf_usb_rx_submit_all_urb_(rx_priv->usbdev);
+ 		spin_lock_irqsave(&rx_priv->rxqlock, flags);
+@@ -837,6 +874,7 @@ int aicwf_process_rxframes(struct aicwf_rx_priv *rx_priv)
+ #endif
+ 
+             if((skb->data[2] & USB_TYPE_CFG) != USB_TYPE_CFG) { // type : data
++                printk(KERN_ERR "MONDBG: [process_rxframes] dispatching DATA skb=%p\n", skb);
+                 rwnx_rxdataind_aicwf(rx_priv->usbdev->rwnx_hw, skb, (void *)rx_priv);
+             }
+             else { //  type : config
+@@ -854,14 +892,20 @@ int aicwf_process_rxframes(struct aicwf_rx_priv *rx_priv)
+                 }
+                 memcpy(msg, data, aggr_len + 4);
+ 
+-                if(((*(msg + 2) & 0x7f) == USB_TYPE_CFG_CMD_RSP) && (rx_priv->usbdev->bus_if->state != (int)USB_DOWN_ST))
++                if(((*(msg + 2) & 0x7f) == USB_TYPE_CFG_CMD_RSP) && (rx_priv->usbdev->bus_if->state != (int)USB_DOWN_ST)) {
++                    printk(KERN_ERR "MONDBG: [process_rxframes] dispatching CMD_RSP msg=%p\n", msg + 4);
+                     rwnx_rx_handle_msg(rx_priv->usbdev->rwnx_hw, (struct ipc_e2a_msg *)(msg + 4));
++                }
+ 
+-                if((*(msg + 2) & 0x7f) == USB_TYPE_CFG_DATA_CFM)
++                if((*(msg + 2) & 0x7f) == USB_TYPE_CFG_DATA_CFM) {
++                    printk(KERN_ERR "MONDBG: [process_rxframes] dispatching DATA_CFM msg=%p\n", msg + 4);
+                     aicwf_usb_host_tx_cfm_handler(&(rx_priv->usbdev->rwnx_hw->usb_env), (u32 *)(msg + 4));
++                }
+ 
+-                if ((*(msg + 2) & 0x7f) == USB_TYPE_CFG_PRINT)
++                if ((*(msg + 2) & 0x7f) == USB_TYPE_CFG_PRINT) {
++                    printk(KERN_ERR "MONDBG: [process_rxframes] dispatching PRINT msg=%p\n", msg + 4);
+                     rwnx_rx_handle_print(rx_priv->usbdev->rwnx_hw, msg + 4, aggr_len);
++                }
+ 
+                 skb_pull(skb, adjust_len+4);
+                 kfree(msg);
+@@ -872,6 +916,7 @@ int aicwf_process_rxframes(struct aicwf_rx_priv *rx_priv)
+     }
+ #endif
+ 
++    printk(KERN_ERR "MONDBG: [process_rxframes] exit ret=%d\n", ret);
+     return ret;
+ #endif //AICWF_SDIO_SUPPORT
+ }
+@@ -1141,9 +1186,11 @@ bool aicwf_rxframe_enqueue(struct device *dev, struct frame_queue *q, struct sk_
+ 
+ void aicwf_dev_skb_free(struct sk_buff *skb)
+ {
+-    if (!skb)
++    if (!skb) {
++        printk(KERN_ERR "MONDBG: [dev_skb_free] skb is NULL\n");
+         return;
+-
++    }
++    printk(KERN_ERR "MONDBG: [dev_skb_free] freeing skb=%p, len=%u\n", skb, skb->len);
+     dev_kfree_skb_any(skb);
+ }
+ 
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c
-index c086988..9310757 100644
+index c086988..1d5cf3a 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c
-@@ -211,12 +211,32 @@ static void usb_txc_sta_flowctrl(struct aicwf_usb_buf *usb_buf, struct aic_usb_d
+@@ -176,17 +176,37 @@ void rwnx_wake_sta_all_queues(struct rwnx_sta *sta, struct rwnx_hw *rwnx_hw)
+ 
+ static void usb_txc_sta_flowctrl(struct aicwf_usb_buf *usb_buf, struct aic_usb_dev *usb_dev)
+ {
++    printk(KERN_ERR "MONDBG: [usb_txc_sta_flowctrl] entered: usb_buf=%p, usb_dev=%p\n", usb_buf, usb_dev);
+ #ifdef CONFIG_PER_STA_FC
+     unsigned long flags;
+ 	struct rwnx_sta *sta;
+ 	struct txdesc_api *hostdesc;
+ 	u8 sta_idx;
++
++    if (!usb_buf) {
++        printk(KERN_ERR "MONDBG: [usb_txc_sta_flowctrl] ERROR: usb_buf is NULL!\n");
++        return;
++    }
++    if (!usb_buf->skb) {
++        printk(KERN_ERR "MONDBG: [usb_txc_sta_flowctrl] ERROR: usb_buf->skb is NULL!\n");
++        return;
++    }
++
+ 	if(usb_buf->cfm)
+ 		hostdesc = (struct txdesc_api *)((u8 *)usb_buf->skb + 4);
+ 	else
+ 		hostdesc = (struct txdesc_api *)((u8 *)usb_buf->skb->data + 4);
++
++    if (!hostdesc) {
++        printk(KERN_ERR "MONDBG: [usb_txc_sta_flowctrl] ERROR: hostdesc is NULL!\n");
++        return;
++    }
++
+ 	//printk("txcpl: sta %d\n", hostdesc->host.staid);
+ 	sta_idx = hostdesc->host.staid;
++    printk(KERN_ERR "MONDBG: [usb_txc_sta_flowctrl] sta_idx=%u, flags=0x%x, cfm=%d\n",
++           sta_idx, hostdesc->host.flags, usb_buf->cfm);
++
+ 	if(sta_idx < NX_REMOTE_STA_MAX && !(hostdesc->host.flags & TXU_CNTRL_MGMT)) {
+ 		struct rwnx_vif *vif = NULL;
+ 		sta = &usb_dev->rwnx_hw->sta_table[sta_idx];
+@@ -194,7 +214,7 @@ static void usb_txc_sta_flowctrl(struct aicwf_usb_buf *usb_buf, struct aic_usb_d
+ 		spin_lock_irqsave(&usb_dev->tx_flow_lock, flags);
+ 		atomic_dec(&usb_dev->rwnx_hw->sta_flowctrl[sta_idx].tx_pending_cnt);
+ 		//printk("sta:%d, pending:%d, flowctrl=%d\n", sta->sta_idx, sta->tx_pending_cnt, sta->flowctrl);
+-		if(RWNX_VIF_TYPE(vif) == NL80211_IFTYPE_AP) {
++		if(vif && RWNX_VIF_TYPE(vif) == NL80211_IFTYPE_AP) {
+ 			if(atomic_read(&usb_dev->rwnx_hw->sta_flowctrl[sta_idx].tx_pending_cnt) < AICWF_USB_FC_PERSTA_LOW_WATER &&
+ 							usb_dev->rwnx_hw->sta_flowctrl[sta_idx].flowctrl) {
+ 				//AICWFDBG(LOGDEBUG, "sta 0x%x:0x%x, %d pending %d, wake\n", sta->mac_addr[4], sta->mac_addr[5], sta->sta_idx, atomic_read(&usb_dev->rwnx_hw->sta_flowctrl[sta_idx].tx_pending_cnt));
+@@ -206,17 +226,38 @@ static void usb_txc_sta_flowctrl(struct aicwf_usb_buf *usb_buf, struct aic_usb_d
+ 		spin_unlock_irqrestore(&usb_dev->tx_flow_lock, flags);
+ 	}
+ #endif
++    printk(KERN_ERR "MONDBG: [usb_txc_sta_flowctrl] exit\n");
+ }
+ 
  static void aicwf_usb_tx_complete(struct urb *urb)
  {
      unsigned long flags;
@@ -119,13 +235,114 @@ index c086988..9310757 100644
 +        return;
 +    }
 +
-+    printk(KERN_ERR "MONDBG: [usb_tx_complete] URB complete: urb=%p, status=%d, actual_len=%u, cfm=%d\n",
-+           urb, urb->status, urb->actual_length, usb_buf->cfm);
++    printk(KERN_ERR "MONDBG: [usb_tx_complete] URB complete: urb=%p, status=%d, actual_len=%u, cfm=%d, skb=%p\n",
++           urb, urb->status, urb->actual_length, usb_buf->cfm, usb_buf->skb);
 +
  	usb_txc_sta_flowctrl(usb_buf, usb_dev);
  
  #ifdef CONFIG_USB_ALIGN_DATA
-@@ -1170,6 +1190,13 @@ static void aicwf_usb_tx_process(struct aic_usb_dev *usb_dev)
+@@ -228,13 +269,17 @@ static void aicwf_usb_tx_complete(struct urb *urb)
+ #ifndef CONFIG_USB_TX_AGGR
+     if (usb_buf->cfm == false) {
+         skb = usb_buf->skb;
+-        dev_kfree_skb_any(skb);
++        printk(KERN_ERR "MONDBG: [usb_tx_complete] cfm==false: freeing non-cfm skb=%p via dev_kfree_skb_any\n", skb);
++        if (skb)
++            dev_kfree_skb_any(skb);
+     }
+     #if !defined CONFIG_USB_NO_TRANS_DMA_MAP
+     else {
+         u8 *buf;
+         buf = (u8 *)usb_buf->skb;
+-        kfree(buf);
++        printk(KERN_ERR "MONDBG: [usb_tx_complete] cfm==true: freeing buf=%p via kfree\n", buf);
++        if (buf)
++            kfree(buf);
+     }
+     #endif
+     usb_buf->skb = NULL;
+@@ -242,6 +287,7 @@ static void aicwf_usb_tx_complete(struct urb *urb)
+     AICWFDBG(LOGDEBUG,"tx com %d\n", usb_buf->aggr_cnt);
+     usb_buf->aggr_cnt = 0;
+ #endif//CONFIG_USB_TX_AGGR
++    printk(KERN_ERR "MONDBG: [usb_tx_complete] returning usb_buf=%p to tx_free_list\n", usb_buf);
+     aicwf_usb_tx_queue(usb_dev, &usb_dev->tx_free_list, usb_buf,
+                     &usb_dev->tx_free_count, &usb_dev->tx_free_lock);
+ 
+@@ -249,10 +295,12 @@ static void aicwf_usb_tx_complete(struct urb *urb)
+     if (usb_dev->tx_free_count > AICWF_USB_TX_HIGH_WATER) {
+         if (usb_dev->tbusy) {
+             usb_dev->tbusy = false;
++            printk(KERN_ERR "MONDBG: [usb_tx_complete] waking tx_flowctrl, tbusy set to false\n");
+             aicwf_usb_tx_flowctrl(usb_dev->rwnx_hw, false);
+         }
+     }
+     spin_unlock_irqrestore(&usb_dev->tx_flow_lock, flags);
++    printk(KERN_ERR "MONDBG: [usb_tx_complete] exit\n");
+ }
+ 
+ void aicwf_usb_rx_submit_all_urb_(struct aic_usb_dev *usb_dev);
+@@ -261,11 +309,19 @@ void aicwf_usb_rx_submit_all_urb_(struct aic_usb_dev *usb_dev);
+ static void aicwf_usb_rx_complete(struct urb *urb)
+ {
+     struct aicwf_usb_buf *usb_buf = (struct aicwf_usb_buf *) urb->context;
+-    struct aic_usb_dev *usb_dev = usb_buf->usbdev;
+-    struct aicwf_rx_priv* rx_priv = usb_dev->rx_priv;
++    struct aic_usb_dev *usb_dev = usb_buf ? usb_buf->usbdev : NULL;
++    struct aicwf_rx_priv* rx_priv = usb_dev ? usb_dev->rx_priv : NULL;
+     struct rx_buff *rx_buff = NULL;
+     unsigned long flags = 0;
+ 
++    printk(KERN_ERR "MONDBG: [usb_rx_complete] (PREALLOC) entered: urb=%p, status=%d, actual_len=%u, usb_buf=%p, usb_dev=%p\n",
++           urb, urb ? urb->status : -1, urb ? urb->actual_length : 0, usb_buf, usb_dev);
++
++    if (!usb_buf || !usb_dev || !rx_priv) {
++        printk(KERN_ERR "MONDBG: [usb_rx_complete] ERROR: null context pointers!\n");
++        return;
++    }
++
+     rx_buff = usb_buf->rx_buff;
+     usb_buf->rx_buff = NULL;
+ 
+@@ -347,12 +403,34 @@ static void aicwf_usb_rx_complete(struct urb *urb)
+ #else
+ static void aicwf_usb_rx_complete(struct urb *urb)
+ {
+-    struct aicwf_usb_buf *usb_buf = (struct aicwf_usb_buf *) urb->context;
+-    struct aic_usb_dev *usb_dev = usb_buf->usbdev;
+-    struct aicwf_rx_priv* rx_priv = usb_dev->rx_priv;
++    struct aicwf_usb_buf *usb_buf;
++    struct aic_usb_dev *usb_dev;
++    struct aicwf_rx_priv* rx_priv;
+     struct sk_buff *skb = NULL;
+     unsigned long flags = 0;
+ 
++    if (!urb) {
++        printk(KERN_ERR "MONDBG: [usb_rx_complete] ERROR: urb is NULL!\n");
++        return;
++    }
++
++    usb_buf = (struct aicwf_usb_buf *) urb->context;
++    if (!usb_buf) {
++        printk(KERN_ERR "MONDBG: [usb_rx_complete] ERROR: usb_buf is NULL!\n");
++        return;
++    }
++
++    usb_dev = usb_buf->usbdev;
++    if (!usb_dev) {
++        printk(KERN_ERR "MONDBG: [usb_rx_complete] ERROR: usb_dev is NULL!\n");
++        return;
++    }
++
++    rx_priv = usb_dev->rx_priv;
++
++    printk(KERN_ERR "MONDBG: [usb_rx_complete] entered: urb=%p, status=%d, actual_len=%u, skb=%p, state=%d\n",
++           urb, urb->status, urb->actual_length, usb_buf->skb, usb_dev->state);
++
+     skb = usb_buf->skb;
+     usb_buf->skb = NULL;
+ 
+@@ -1170,6 +1248,13 @@ static void aicwf_usb_tx_process(struct aic_usb_dev *usb_dev)
      int ret = 0;
      u8* data = NULL;
  
@@ -139,7 +356,7 @@ index c086988..9310757 100644
  #ifdef CONFIG_USB_TX_AGGR
      if (!aicwf_is_framequeue_empty(&usb_dev->tx_priv->txq)) {
          if (aicwf_usb_send(usb_dev->tx_priv)) {
-@@ -1181,21 +1208,34 @@ static void aicwf_usb_tx_process(struct aic_usb_dev *usb_dev)
+@@ -1181,21 +1266,34 @@ static void aicwf_usb_tx_process(struct aic_usb_dev *usb_dev)
      while(!list_empty(&usb_dev->tx_post_list)) {
  
          if (usb_dev->state != USB_UP_ST) {
@@ -178,7 +395,7 @@ index c086988..9310757 100644
              #ifdef CONFIG_USB_TX_AGGR
              aicwf_usb_tx_queue(usb_dev, &usb_dev->tx_post_list, usb_buf,
                      &usb_dev->tx_post_count, &usb_dev->tx_post_lock);
-@@ -1203,6 +1243,8 @@ static void aicwf_usb_tx_process(struct aic_usb_dev *usb_dev)
+@@ -1203,6 +1301,8 @@ static void aicwf_usb_tx_process(struct aic_usb_dev *usb_dev)
              #else
              goto fail;
              #endif
@@ -187,7 +404,7 @@ index c086988..9310757 100644
          }
  
          continue;
-@@ -1723,10 +1765,10 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
+@@ -1723,10 +1823,10 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
      struct aicwf_usb_buf *usb_buf;
      int ret = 0;
      unsigned long flags;
@@ -202,7 +419,7 @@ index c086988..9310757 100644
      u8 usb_header[4];
      u8 adj_buf[4] = {0};
      u16 index = 0;
-@@ -1736,8 +1778,55 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
+@@ -1736,8 +1836,55 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
      int align;
  #endif
  
@@ -259,7 +476,7 @@ index c086988..9310757 100644
          kmem_cache_free(rwnx_hw->sw_txhdr_cache, txhdr->sw_hdr);
          dev_kfree_skb_any(skb);
          return -EIO;
-@@ -1746,13 +1835,16 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
+@@ -1746,13 +1893,16 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
      usb_buf = aicwf_usb_tx_dequeue(usb_dev, &usb_dev->tx_free_list,
                          &usb_dev->tx_free_count, &usb_dev->tx_free_lock);
      if (!usb_buf) {
@@ -277,7 +494,7 @@ index c086988..9310757 100644
      usb_tx_flow_ctrl(txhdr, usb_dev, rwnx_hw);
  
      if (txhdr->sw_hdr->need_cfm) {
-@@ -1762,6 +1854,13 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
+@@ -1762,6 +1912,13 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
          #else
          buf = kmalloc(skb->len + 1, GFP_ATOMIC/*GFP_KERNEL*/);
          #endif
@@ -291,7 +508,7 @@ index c086988..9310757 100644
          index += sizeof(usb_header);
          memcpy(&buf[index], (u8 *)(long)&txhdr->sw_hdr->desc, sizeof(struct txdesc_api));
          index += sizeof(struct txdesc_api);
-@@ -1811,8 +1910,8 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
+@@ -1811,8 +1968,8 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
  
  #ifndef CONFIG_USE_USB_ZERO_PACKET
  	if((buf_len % 512) == 0){
@@ -368,8 +585,92 @@ index 0ea1687..caef1ba 100644
                  wiphy_err(rwnx_hw->wiphy,
                          "Monitor+Data interface support (MON_DATA) disabled\n");
                  return -EIO;
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_msg_rx.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_msg_rx.c
+index e640fd0..c48e8d2 100644
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_msg_rx.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_msg_rx.c
+@@ -1606,14 +1606,22 @@ static msg_cb_fct *msg_hdlrs[] = {
+  */
+ void rwnx_rx_handle_msg(struct rwnx_hw *rwnx_hw, struct ipc_e2a_msg *msg)
+ {
+-	//printk("%s(%d) MSG_T(msg->id):%d MSG_I(msg->id):%d cmd:%s\r\n", __func__, 
+-	//	msg->id,
+-	//	MSG_T(msg->id), 
+-	//	MSG_I(msg->id),
+-	//	rwnx_id2str[MSG_T(msg->id)][MSG_I(msg->id)]);
+-	
++    if (!msg) {
++        printk(KERN_ERR "MONDBG: [rx_handle_msg] ERROR: msg is NULL!\n");
++        return;
++    }
++
++    printk(KERN_ERR "MONDBG: [rx_handle_msg] entered: msg_id=0x%x (T:%d, I:%d), rwnx_hw=%p\n",
++           msg->id, MSG_T(msg->id), MSG_I(msg->id), rwnx_hw);
++
++    if (!rwnx_hw || !rwnx_hw->cmd_mgr) {
++        printk(KERN_ERR "MONDBG: [rx_handle_msg] ERROR: rwnx_hw or cmd_mgr is NULL!\n");
++        return;
++    }
++
+     rwnx_hw->cmd_mgr->msgind(rwnx_hw->cmd_mgr, msg,
+                             msg_hdlrs[MSG_T(msg->id)][MSG_I(msg->id)]);
++    printk(KERN_ERR "MONDBG: [rx_handle_msg] exit\n");
+ }
+ 
+ void rwnx_rx_handle_print(struct rwnx_hw *rwnx_hw, u8 *msg, u32 len)
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
+index ff3e870..070467e 100644
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
+@@ -1233,9 +1233,18 @@ static int rwnx_rx_monitor(struct rwnx_hw *rwnx_hw, struct rwnx_vif *rwnx_vif,
+                            struct sk_buff *skb,  struct hw_rxhdr *hw_rxhdr_ptr,
+                            u8 rtap_len)
+ {
++    printk(KERN_ERR "MONDBG: [rx_monitor] entered: rwnx_hw=%p, rwnx_vif=%p, skb=%p, rtap_len=%u\n",
++           rwnx_hw, rwnx_vif, skb, rtap_len);
++
++    if (!rwnx_vif || !rwnx_vif->ndev || !skb) {
++        printk(KERN_ERR "MONDBG: [rx_monitor] ERROR: null pointer (rwnx_vif=%p, skb=%p)!\n", rwnx_vif, skb);
++        return -1;
++    }
++
+     skb->dev = rwnx_vif->ndev;
+ 
+     if (rwnx_vif->wdev.iftype != NL80211_IFTYPE_MONITOR) {
++        printk(KERN_ERR "MONDBG: [rx_monitor] ERROR: not a monitor vif (iftype=%d)\n", rwnx_vif->wdev.iftype);
+         netdev_err(rwnx_vif->ndev, "not a monitor vif\n");
+         return -1;
+     }
+@@ -1254,9 +1263,11 @@ static int rwnx_rx_monitor(struct rwnx_hw *rwnx_hw, struct rwnx_vif *rwnx_vif,
+     filter_rx_tcp_ack(rwnx_hw, skb->data, cpu_to_le16(skb->len));
+ #endif
+ 
++    printk(KERN_ERR "MONDBG: [rx_monitor] passing skb=%p (len=%u) to netif_receive_skb\n", skb, skb->len);
+     local_bh_disable();
+     netif_receive_skb(skb);
+     local_bh_enable();
++    printk(KERN_ERR "MONDBG: [rx_monitor] netif_receive_skb complete\n");
+ 
+     return 0;
+ }
+@@ -2068,6 +2079,15 @@ u8 rwnx_rxdataind_aicwf(struct rwnx_hw *rwnx_hw, void *hostid, void *rx_priv)
+     const struct ethhdr *eth;
+ 
+     REG_SW_SET_PROFILING(rwnx_hw, SW_PROF_RWNXDATAIND);
++
++    printk(KERN_ERR "MONDBG: [rxdataind_aicwf] entered: rwnx_hw=%p, hostid=%p, rx_priv=%p\n",
++           rwnx_hw, hostid, rx_priv);
++
++    if (!skb || !skb->data) {
++        printk(KERN_ERR "MONDBG: [rxdataind_aicwf] ERROR: skb or skb->data is NULL!\n");
++        return 0;
++    }
++
+     hw_rxhdr = (struct hw_rxhdr *)skb->data;
+ 
+ #ifdef AICWF_RX_REORDER
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
-index d7b9a40..01a41dc 100644
+index d7b9a40..34346b6 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
 @@ -319,6 +319,26 @@ u16 rwnx_select_txq(struct rwnx_vif *rwnx_vif, struct sk_buff *skb)
@@ -561,8 +862,8 @@ index d7b9a40..01a41dc 100644
 +        printk(KERN_ERR "MONDBG: [mon_xmit] ERROR: vif (netdev_priv) is NULL on dev %s!\n", dev->name);
 +        dev_kfree_skb_any(skb);
 +        return NETDEV_TX_OK;
-     }
- 
++    }
++
 +    rwnx_hw = vif->rwnx_hw;
 +    if (!rwnx_hw) {
 +        printk(KERN_ERR "MONDBG: [mon_xmit] ERROR: rwnx_hw is NULL on dev %s (vif_idx %d)!\n", dev->name, vif->vif_index);
@@ -575,17 +876,17 @@ index d7b9a40..01a41dc 100644
 +        printk(KERN_ERR "MONDBG: [mon_xmit] ERROR: skb->data is NULL!\n");
 +        dev_kfree_skb_any(skb);
 +        return NETDEV_TX_OK;
-+    }
+     }
  
--    if (unlikely(rtap_hdr->it_version)){
--        AICWFDBG(LOGERROR, "%s itv \r\n", __func__);
 +    rtap_hdr = (struct ieee80211_radiotap_header*)(rtap_buf);
 +    rtap_len = ieee80211_get_radiotap_len(rtap_buf);
 +    frame_len = skb->len;
 +
 +    printk(KERN_ERR "MONDBG: [mon_xmit] STEP 1: entered xmit on dev %s (ifindex %d, vif %p, vif_idx %d, skb_len %u, rtap_len %d)\n",
 +           dev->name, dev->ifindex, vif, vif->vif_index, skb->len, rtap_len);
-+
+ 
+-    if (unlikely(rtap_hdr->it_version)){
+-        AICWFDBG(LOGERROR, "%s itv \r\n", __func__);
 +    if (unlikely(rtap_hdr->it_version)) {
 +        printk(KERN_ERR "MONDBG: [mon_xmit] ERROR: invalid radiotap version: %u\n", rtap_hdr->it_version);
          goto free_tag;
@@ -822,13 +1123,13 @@ index d7b9a40..01a41dc 100644
      if (txq->idx == TXQ_INACTIVE) {
 -        AICWFDBG(LOGERROR, "TXQ_INACTIVE\n");
 +        printk(KERN_ERR "MONDBG: [mon_xmit] ERROR: txq->idx is TXQ_INACTIVE!\n");
-+        goto free_tag;
-+    }
+         goto free_tag;
+     }
 +
 +    if (!txq->hwq) {
 +        printk(KERN_ERR "MONDBG: [mon_xmit] ERROR: txq->hwq is NULL!\n");
-         goto free_tag;
-     }
++        goto free_tag;
++    }
 +
      // prepare to xmit
      headroom = sizeof(struct rwnx_txhdr);
@@ -921,8 +1222,172 @@ index d7b9a40..01a41dc 100644
  
  free_tag:
      dev_kfree_skb_any(skb);
+@@ -2199,23 +2223,44 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
+     struct rwnx_hwq *hwq;
+     struct rwnx_txq *txq;
+     u16 headroom;
+-    //int peek_off = offsetof(struct rwnx_hw_txhdr, cfm);
+-    //int peek_len = sizeof(((struct rwnx_hw_txhdr *)0)->cfm);
++
++    printk(KERN_ERR "MONDBG: [txdatacfm] entered: pthis=%p, host_id=%p, skb=%p\n", pthis, host_id, skb);
++
++    if (!rwnx_hw) {
++        printk(KERN_ERR "MONDBG: [txdatacfm] ERROR: rwnx_hw is NULL!\n");
++        return -1;
++    }
++    if (!skb || !skb->data) {
++        printk(KERN_ERR "MONDBG: [txdatacfm] ERROR: skb or skb->data is NULL!\n");
++        return -1;
++    }
+ 
+     txhdr = (struct rwnx_txhdr *)skb->data;
++    if (!txhdr) {
++        printk(KERN_ERR "MONDBG: [txdatacfm] ERROR: txhdr is NULL!\n");
++        return -1;
++    }
++
+     sw_txhdr = txhdr->sw_hdr;
++    printk(KERN_ERR "MONDBG: [txdatacfm] txhdr=%p, sw_txhdr=%p\n", txhdr, sw_txhdr);
++
++    if (!sw_txhdr) {
++        printk(KERN_ERR "MONDBG: [txdatacfm] ERROR: sw_txhdr is NULL!\n");
++        return -1;
++    }
+ 
+-    /* Read status in the TX control header */
+     rwnx_txst = txhdr->hw_hdr.cfm.status;
++    printk(KERN_ERR "MONDBG: [txdatacfm] txst.value=0x%x, vif=%p, sta=%p, flags=0x%x\n",
++           rwnx_txst.value, sw_txhdr->rwnx_vif, sw_txhdr->rwnx_sta, sw_txhdr->desc.host.flags);
+ 
+-    /* Check status in the header. If status is null, it means that the buffer
+-     * was not transmitted and we have to return immediately */
+     if (rwnx_txst.value == 0) {
++        printk(KERN_ERR "MONDBG: [txdatacfm] txst.value is 0, returning -1\n");
+         return -1;
+     }
+ 
+ #ifdef AICWF_USB_SUPPORT
+-    if (rwnx_hw->usbdev->state == USB_DOWN_ST) {
++    if (rwnx_hw->usbdev && rwnx_hw->usbdev->state == USB_DOWN_ST) {
++        printk(KERN_ERR "MONDBG: [txdatacfm] USB_DOWN_ST: freeing sw_txhdr=%p & skb=%p\n", sw_txhdr, skb);
+         headroom = sw_txhdr->headroom;
+         kmem_cache_free(rwnx_hw->sw_txhdr_cache, sw_txhdr);
+         skb_pull(skb, headroom);
+@@ -2234,56 +2279,35 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
+ #endif
+ 
+     txq = sw_txhdr->txq;
+-    /* don't use txq->hwq as it may have changed between push and confirm */
++    printk(KERN_ERR "MONDBG: [txdatacfm] txq=%p, hw_queue=%u\n", txq, sw_txhdr->hw_queue);
+     hwq = &rwnx_hw->hwq[sw_txhdr->hw_queue];
++
++    printk(KERN_ERR "MONDBG: [txdatacfm] calling rwnx_txq_confirm_any\n");
+     rwnx_txq_confirm_any(rwnx_hw, txq, hwq, sw_txhdr);
+ 
+-    /* Update txq and HW queue credits */
+     if (sw_txhdr->desc.host.flags & TXU_CNTRL_MGMT) {
+-        trace_printk("done=%d retry_required=%d sw_retry_required=%d acknowledged=%d\n",
+-                     rwnx_txst.tx_done, rwnx_txst.retry_required,
+-                     rwnx_txst.sw_retry_required, rwnx_txst.acknowledged);
+-#ifdef CREATE_TRACE_POINTS
+-        trace_mgmt_cfm(sw_txhdr->rwnx_vif->vif_index,
+-                       (sw_txhdr->rwnx_sta) ? sw_txhdr->rwnx_sta->sta_idx : 0xFF,
+-                       rwnx_txst.acknowledged);
+-#endif
+-        /* Confirm transmission to CFG80211 */
+-        cfg80211_mgmt_tx_status(&sw_txhdr->rwnx_vif->wdev,
+-                                (unsigned long)skb,
+-                                (skb->data + sw_txhdr->headroom),
+-                                sw_txhdr->frame_len,
+-                                rwnx_txst.acknowledged,
+-                                GFP_ATOMIC);
+-    } else if ((txq->idx != TXQ_INACTIVE) &&
++        printk(KERN_ERR "MONDBG: [txdatacfm] TXU_CNTRL_MGMT flag set, vif=%p\n", sw_txhdr->rwnx_vif);
++        if (sw_txhdr->rwnx_vif) {
++            printk(KERN_ERR "MONDBG: [txdatacfm] calling cfg80211_mgmt_tx_status, wdev=%p\n", &sw_txhdr->rwnx_vif->wdev);
++            cfg80211_mgmt_tx_status(&sw_txhdr->rwnx_vif->wdev,
++                                    (unsigned long)skb,
++                                    (skb->data + sw_txhdr->headroom),
++                                    sw_txhdr->frame_len,
++                                    rwnx_txst.acknowledged,
++                                    GFP_ATOMIC);
++        } else {
++            printk(KERN_ERR "MONDBG: [txdatacfm] ERROR: sw_txhdr->rwnx_vif is NULL during mgmt_tx_status!\n");
++        }
++    } else if (txq && (txq->idx != TXQ_INACTIVE) &&
+                (rwnx_txst.retry_required || rwnx_txst.sw_retry_required)) {
+         bool sw_retry = (rwnx_txst.sw_retry_required) ? true : false;
+-
+-        /* Reset the status */
++        printk(KERN_ERR "MONDBG: [txdatacfm] reinjecting retry packet, sw_retry=%d\n", sw_retry);
+         txhdr->hw_hdr.cfm.status.value = 0;
+-
+-        /* The confirmed packet was part of an AMPDU and not acked
+-         * correctly, so reinject it in the TX path to be retried */
+         rwnx_tx_retry(rwnx_hw, skb, txhdr, sw_retry);
+         return 0;
+     }
+-#ifdef CREATE_TRACE_POINTS
+-    trace_skb_confirm(skb, txq, hwq, &txhdr->hw_hdr.cfm);
+-#endif
+-    /* STA may have disconnect (and txq stopped) when buffers were stored
+-       in fw. In this case do nothing when they're returned */
+-    if (txq->idx != TXQ_INACTIVE) {
+-        #if 0
+-        if (txhdr->hw_hdr.cfm.credits) {
+-            txq->credits += txhdr->hw_hdr.cfm.credits;
+-            if (txq->credits <= 0)
+-                rwnx_txq_stop(txq, RWNX_TXQ_STOP_FULL);
+-            else if (txq->credits > 0)
+-                rwnx_txq_start(txq, RWNX_TXQ_STOP_FULL);
+-        }
+-        #endif
+ 
+-        /* continue service period */
++    if (txq && txq->idx != TXQ_INACTIVE) {
+         if (unlikely(txq->push_limit && !rwnx_txq_is_full(txq))) {
+             rwnx_txq_add_to_hw_list(txq);
+         }
+@@ -2294,14 +2318,18 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
+         rwnx_hw->stats.ampdus_tx[txhdr->hw_hdr.cfm.ampdu_size - 1]++;
+ 
+ #ifdef CONFIG_RWNX_AMSDUS_TX
+-    txq->amsdu_len = txhdr->hw_hdr.cfm.amsdu_size;
++    if (txq)
++        txq->amsdu_len = txhdr->hw_hdr.cfm.amsdu_size;
+ #endif
+ 
+-    /* Update statistics */
+-    sw_txhdr->rwnx_vif->net_stats.tx_packets++;
+-    sw_txhdr->rwnx_vif->net_stats.tx_bytes += sw_txhdr->frame_len;
++    printk(KERN_ERR "MONDBG: [txdatacfm] updating net_stats for vif=%p\n", sw_txhdr->rwnx_vif);
++    if (sw_txhdr->rwnx_vif) {
++        sw_txhdr->rwnx_vif->net_stats.tx_packets++;
++        sw_txhdr->rwnx_vif->net_stats.tx_bytes += sw_txhdr->frame_len;
++    } else {
++        printk(KERN_ERR "MONDBG: [txdatacfm] WARNING: sw_txhdr->rwnx_vif is NULL during net_stats update!\n");
++    }
+ 
+-    /* Release SKBs */
+ #ifdef CONFIG_RWNX_AMSDUS_TX
+     if (sw_txhdr->desc.host.flags & TXU_CNTRL_AMSDU) {
+         struct rwnx_amsdu_txhdr *amsdu_txhdr;
+@@ -2313,10 +2341,13 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
+ #endif /* CONFIG_RWNX_AMSDUS_TX */
+ 
+     headroom = sw_txhdr->headroom;
++    printk(KERN_ERR "MONDBG: [txdatacfm] freeing sw_txhdr=%p via kmem_cache_free\n", sw_txhdr);
+     kmem_cache_free(rwnx_hw->sw_txhdr_cache, sw_txhdr);
+     skb_pull(skb, headroom);
++    printk(KERN_ERR "MONDBG: [txdatacfm] consuming skb=%p via consume_skb\n", skb);
+     consume_skb(skb);
+ 
++    printk(KERN_ERR "MONDBG: [txdatacfm] exit success\n");
+     return 0;
+ }
+ 
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_txq.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_txq.c
-index 5b71597..d459f96 100644
+index 5b71597..3650fb2 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_txq.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_txq.c
 @@ -828,6 +828,22 @@ int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq,
@@ -948,7 +1413,32 @@ index 5b71597..d459f96 100644
  #ifdef CONFIG_RWNX_FULLMAC
      if (unlikely(txq->sta && txq->sta->ps.active)) {
          txq->sta->ps.pkt_ready[txq->ps_id]++;
-@@ -1236,6 +1252,19 @@ void rwnx_hwq_process(struct rwnx_hw *rwnx_hw, struct rwnx_hwq *hwq)
+@@ -911,6 +927,15 @@ void rwnx_txq_confirm_any(struct rwnx_hw *rwnx_hw, struct rwnx_txq *txq,
+ {
+     int user = 0;
+ 
++    printk(KERN_ERR "MONDBG: [txq_confirm_any] entered: rwnx_hw=%p, txq=%p, hwq=%p, sw_txhdr=%p\n",
++           rwnx_hw, txq, hwq, sw_txhdr);
++
++    if (!txq || !hwq || !rwnx_hw) {
++        printk(KERN_ERR "MONDBG: [txq_confirm_any] ERROR: null pointer (txq=%p, hwq=%p, rwnx_hw=%p)!\n",
++               txq, hwq, rwnx_hw);
++        return;
++    }
++
+ #ifdef CONFIG_RWNX_MUMIMO_TX
+     int group_id;
+ 
+@@ -929,6 +954,8 @@ void rwnx_txq_confirm_any(struct rwnx_hw *rwnx_hw, struct rwnx_txq *txq,
+ 
+     hwq->need_processing = true;
+     rwnx_hw->stats.cfm_balance[hwq->id]--;
++    printk(KERN_ERR "MONDBG: [txq_confirm_any] exit: hwq_id=%d, cfm_balance=%d\n",
++           hwq->id, rwnx_hw->stats.cfm_balance[hwq->id]);
+ }
+ 
+ /******************************************************************************
+@@ -1236,6 +1263,19 @@ void rwnx_hwq_process(struct rwnx_hw *rwnx_hw, struct rwnx_hwq *hwq)
  #ifndef CONFIG_ONE_TXQ
      unsigned long flags;
  #endif
@@ -968,3 +1458,110 @@ index 5b71597..d459f96 100644
  #ifdef CREATE_TRACE_POINTS
      trace_process_hw_queue(hwq);
  #endif
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/usb_host.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/usb_host.c
+index fca8dc4..7f3c57e 100644
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/usb_host.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/usb_host.c
+@@ -77,55 +77,58 @@ void aicwf_usb_host_txdesc_push(struct usb_host_env_tag *env, const int queue_id
+ void aicwf_usb_host_tx_cfm_handler(struct usb_host_env_tag *env, u32 *data)
+ {
+     u32 queue_idx  = 0;//data[0];
+-    //struct rwnx_hw *rwnx_hw = (struct rwnx_hw *)env->pthis;
+     struct sk_buff *skb = NULL;
+     struct rwnx_txhdr *txhdr;
+-	AICWFDBG(LOGTRACE, "%s Enter \n", __func__);
+-    //printk("sdio_host_tx_cfm_handler, %d, 0x%08x\r\n", queue_idx, data[1]);
+-    // TX confirmation descriptors have been received
+-   // REG_SW_SET_PROFILING(env->pthis, SW_PROF_IRQ_E2A_TXCFM);
+-    //while (1)
++    uint32_t used_idx;
++    unsigned long host_id;
++
++    if (!env) {
++        printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] ERROR: env is NULL!\n");
++        return;
++    }
++    if (!data) {
++        printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] ERROR: data is NULL!\n");
++        return;
++    }
++
++    printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] entered: env=%p, data[0]=0x%x, data[1]=%u\n",
++           env, data[0], data[1]);
++
++    used_idx = data[1];
++    host_id = env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT];
++
++    printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] used_idx=%u, host_id=%p\n", used_idx, (void *)host_id);
++
++    // Reset the host id in the array
++    env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT] = 0;
++
++    if (host_id == 0)
+     {
+-        // Get the used index and increase it. We do the increase before knowing if the
+-        // current buffer is confirmed because the callback function may call the
+-        // ipc_host_txdesc_get() in case flow control was enabled and the index has to be
+-        // already at the good value to ensure that the test of FIFO full is correct
+-        //uint32_t used_idx = env->txdesc_used_idx[queue_idx]++;
+-		uint32_t used_idx = data[1];
+-        //uint64_t host_id = env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT];
+-        unsigned long host_id = env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT];
+-
+-        // Reset the host id in the array
+-        env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT] = 0;
+-
+-        // call the external function to indicate that a TX packet is freed
+-        if (host_id == 0)
+-        {
+-            // No more confirmations, so put back the used index at its initial value
+-            env->txdesc_used_idx[queue_idx] = used_idx;
+-			AICWFDBG(LOGERROR, "ERROR:No more confirmations\r\n");
+-            return;
+-            //break;
+-        }
+-		AICWFDBG(LOGINFO, "usb_host_tx_cfm_handler:used_idx=%d, hostid=%p, 0x%p, status=%x\r\n",used_idx, (void *)host_id, env->pthis, data[0]);
+-
+-        // set the cfm status
+-        skb = (struct sk_buff *)host_id;
+-        txhdr = (struct rwnx_txhdr *)skb->data;
+-        txhdr->hw_hdr.cfm.status = (union rwnx_hw_txstatus)data[0];
+-        //txhdr->hw_hdr.status = data[1];
+-        //if (env->cb.send_data_cfm(env->pthis, host_id) != 0)
+-        if (rwnx_txdatacfm(env->pthis, (void *)host_id) != 0)
+-        {
+-            // No more confirmations, so put back the used index at its initial value
+-            env->txdesc_used_idx[queue_idx] = used_idx;
+-            env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT] = host_id;
+-            // and exit the loop
+-            AICWFDBG(LOGERROR, "ERROR:rwnx_txdatacfm,\r\n");
+-          //  break;
+-        }
++        env->txdesc_used_idx[queue_idx] = used_idx;
++        printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] ERROR: host_id is 0 (No more confirmations)!\n");
++        return;
++    }
+ 
++    skb = (struct sk_buff *)host_id;
++    if (!skb || !skb->data) {
++        printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] ERROR: skb or skb->data is NULL for host_id=%p!\n", (void *)host_id);
++        return;
+     }
++
++    txhdr = (struct rwnx_txhdr *)skb->data;
++    txhdr->hw_hdr.cfm.status = (union rwnx_hw_txstatus)data[0];
++
++    printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] calling rwnx_txdatacfm pthis=%p, host_id=%p, status=0x%x\n",
++           env->pthis, (void *)host_id, data[0]);
++
++    if (rwnx_txdatacfm(env->pthis, (void *)host_id) != 0)
++    {
++        env->txdesc_used_idx[queue_idx] = used_idx;
++        env->tx_host_id[queue_idx][used_idx % USB_TXDESC_CNT] = host_id;
++        printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] rwnx_txdatacfm returned non-zero!\n");
++    }
++
++    printk(KERN_ERR "MONDBG: [host_tx_cfm_handler] exit\n");
+ }
+ 
+ int aicwf_rwnx_usb_platform_init(struct aic_usb_dev *usbdev)

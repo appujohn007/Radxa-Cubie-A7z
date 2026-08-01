@@ -1,13 +1,13 @@
-# AIC8800D80 USB Wi-Fi Driver Patch & Monitor-Mode Instrumentation (Radxa Cubie A7Z)
+# AIC8800D80 USB Wi-Fi Driver Patch & Post-TX Instrumentation (Radxa Cubie A7Z)
 
 ## Overview
 
 This directory contains the patch documentation, source diffs, and build logs for the AIC8800D80 USB Wi-Fi driver on the Radxa Cubie A7Z.
 
-The driver has been instrumented with a **DEBUG BUILD** featuring fine-grained kernel logging (`MONDBG:`) and defensive NULL-pointer safeguards across the entire Monitor Mode Packet Injection (TX) path to diagnose kernel NULL pointer Oops crashes during packet injection (e.g. `aireplay-ng --test wlan1`).
+The driver has been instrumented with a **DEBUG BUILD** featuring dense kernel logging (`MONDBG:`) and defensive NULL-pointer safeguards across both pre-TX and **post-TX completion & confirmation paths** to isolate the exact post-transmission function where kernel Oops crashes occur during raw frame injection (e.g. `aireplay-ng --test wlan1`).
 
 > [!IMPORTANT]
-> The rebuilt debug module binary `aic8800_fdrv.ko` is stored at `/workspaces/monitor-debug-build/aic8800_fdrv.ko` for evidence collection and has **not** been installed on the target Radxa board.
+> The rebuilt debug module binary `aic8800_fdrv.ko` is stored at `/workspaces/monitor-debug-build/aic8800_fdrv.ko` for evidence collection and has **not** been installed on the target Radxa board or committed inside `driver/`.
 
 ### Build Environment
 - **Target OS / Kernel**: Linux 5.15.147-21-a733 (arm64)
@@ -16,9 +16,7 @@ The driver has been instrumented with a **DEBUG BUILD** featuring fine-grained k
 
 ---
 
-## 1. Monitor TX Injection Flow & Call Graph
-
-When raw 802.11 radiotap frames are injected via `aireplay-ng`:
+## 1. Complete Monitor TX & Post-TX Pipeline Call Graph
 
 ```
 User Space (aireplay-ng --test wlan1)
@@ -43,74 +41,75 @@ Linux Kernel Network Subsystem / Netdev Layer
                                                                         │
                                                                         └──► rwnx_tx_push() [rwnx_tx.c]
                                                                               │
-                                                                              ├── Check need_cfm / raw_frame / rate_config
                                                                               └──► aicwf_frame_tx() [aicwf_txrxif.c]
                                                                                     │
                                                                                     └──► aicwf_bus_txdata() [aicwf_usb.c]
                                                                                           │
-                                                                                          ├── Dequeue USB buffer (aicwf_usb_tx_dequeue)
-                                                                                          ├── Format USB header & payload
-                                                                                          ├── Fill URB (usb_fill_bulk_urb)
-                                                                                          ├── Queue to tx_post_list
-                                                                                          └── Schedule TX process / Tasklet
+                                                                                          └──► usb_submit_urb() [Linux USB Core]
                                                                                                 │
-                                                                                                └──► aicwf_usb_tx_process()
-                                                                                                      │
-                                                                                                      └──► usb_submit_urb() [Linux USB Core]
+                                                                                                ▼
+                                                                                   [Post-TX / Completion Pipeline]
+                                                                                                │
+  ┌─────────────────────────────────────────────────────────────────────────────────────────────┴────────────────────────────────┐
+  │                                                                                                                              │
+  ▼                                                                                                                              ▼
+aicwf_usb_tx_complete() [aicwf_usb.c]                                                                          aicwf_usb_rx_complete() [aicwf_usb.c]
+  ├── usb_txc_sta_flowctrl()                                                                                     │
+  ├── dev_kfree_skb_any() [if cfm == false]                                                                      ├── Enqueues rx_buff/skb to rxq
+  ├── aicwf_usb_tx_queue(..., tx_free_list)                                                                      └── Signals complete(&busrx_trgg)
+  └── aicwf_usb_tx_flowctrl()                                                                                          │
+                                                                                                                       ▼
+                                                                                                                 usb_busrx_thread() / aicwf_tasklet_rxframes()
+                                                                                                                       │
+                                                                                                                       └──► aicwf_process_rxframes() [aicwf_txrxif.c]
+                                                                                                                             │
+                                                                                                                             ├── [DATA] ───► rwnx_rxdataind_aicwf() ──► rwnx_rx_monitor() ──► netif_receive_skb()
+                                                                                                                             │
+                                                                                                                             ├── [DATA_CFM] ► aicwf_usb_host_tx_cfm_handler() ──► rwnx_txdatacfm()
+                                                                                                                             │                  │                                   ├── rwnx_txq_confirm_any()
+                                                                                                                             │                  │                                   ├── cfg80211_mgmt_tx_status()
+                                                                                                                             │                  │                                   ├── kmem_cache_free()
+                                                                                                                             │                  │                                   └── consume_skb()
+                                                                                                                             │
+                                                                                                                             └── [CMD_RSP] ─► rwnx_rx_handle_msg()
 ```
 
 ---
 
 ## 2. Detailed Instrumentation Points (`MONDBG:`)
 
-Every step in the monitor injection path has been instrumented with `printk(KERN_ERR "MONDBG: ...\n")` to ensure immediate logging to `dmesg`:
-
-1. **`rwnx_select_queue()`** (`rwnx_main.c`):
-   - Added NULL checks for `dev`, `skb`, `netdev_priv(dev)` (`rwnx_vif`), and `rwnx_vif->rwnx_hw`.
-   - Logs `MONDBG: [select_queue] MONITOR xmit select_queue on dev wlan1 (vif ..., skb len ..., prio ...)`.
-2. **`rwnx_select_txq()`** (`rwnx_tx.c`):
-   - In `case NL80211_IFTYPE_MONITOR:` checks `rwnx_vif`, `rwnx_vif->rwnx_hw`, and `txq = rwnx_txq_vif_get(rwnx_vif, NX_UNK_TXQ_TYPE)`.
-   - Logs `MONDBG: [select_txq] MONITOR select_txq: txq=..., txq->idx=..., ndev_idx=...`.
-3. **`rwnx_start_monitor_if_xmit()`** (`rwnx_tx.c`):
-   - **STEP 1**: Validates `skb`, `dev`, `vif`, `rwnx_hw`, `skb->data`. Logs `dev->name`, `ifindex`, `vif_idx`, `skb_len`, `rtap_len`.
-   - **STEP 2**: Validates Radiotap header version and length. Checks `iterator.this_arg` for NULL on every iteration.
-   - **STEP 3**: Summarizes parsed radiotap parameters (`frame_len`, `rate_fmt`, `rate_idx`, `txsig_bw`).
-   - **STEP 4**: Validates `txq`, `txq->idx != TXQ_INACTIVE`, and `txq->hwq != NULL`.
-   - **STEP 5**: Allocates `skb_mgmt` & `sw_txhdr` (`kmem_cache_alloc`), fills `txdesc_api` (staid `0xFF`, `vif_idx`, `flags = TXU_CNTRL_MGMT`, `rate_config`, `status_desc_addr`).
-   - **STEP 6 & 7**: Logs acquiring `tx_lock`, queueing SKB via `rwnx_txq_queue_skb()`, and invoking `rwnx_hwq_process()`.
-   - **STEP 8**: Logs releasing `tx_lock` and returning `NETDEV_TX_OK`.
-4. **`rwnx_txq_queue_skb()` & `rwnx_hwq_process()`** (`rwnx_txq.c`):
-   - Validates `skb`, `txq`, `rwnx_hw`, `hwq`. Logs queue status, credits, `hwq_id`, and `hwq_size`.
-5. **`rwnx_tx_push()`** (`rwnx_tx.c`):
-   - Validates `rwnx_hw`, `txhdr`, `sw_txhdr`, `skb`, `txq`, `txq->hwq`, `rwnx_hw->usbdev`.
-   - Added a NULL check on `sw_txhdr->rwnx_vif` before updating `net_stats`.
-6. **`aicwf_frame_tx()`** (`aicwf_txrxif.c`):
-   - Validates `dev`, `skb`, `usbdev`, `usbdev->state`, `usbdev->bus_if`.
-7. **`aicwf_usb_bus_txdata()` & `aicwf_usb_tx_process()`** (`aicwf_usb.c`):
-   - Validates `dev`, `skb`, `bus_if`, `usb_dev`, `txhdr`, `txhdr->sw_hdr`, `usb_buf`, `usb_buf->urb`, `usb_dev->udev`.
-   - **Vendor Bug Fix**: Fixed a use-after-free in `aicwf_usb_bus_txdata()` where `txhdr->sw_hdr->need_cfm` was accessed after `txhdr->sw_hdr` was freed by `kmem_cache_free()`.
-   - Logs URB submission (`usb_submit_urb`) status and return codes.
+| Function | File | Traced Event & Parameters |
+|---|---|---|
+| `rwnx_select_queue()` | `rwnx_main.c` | Queue selection, `vif`, `skb_len`, priority |
+| `rwnx_select_txq()` | `rwnx_tx.c` | Monitor TXQ selection, `txq` pointer, `ndev_idx` |
+| `rwnx_start_monitor_if_xmit()` | `rwnx_tx.c` | 8-step monitor TX pipeline, radiotap iteration, descriptor allocation, `rate_config` |
+| `rwnx_txq_queue_skb()` | `rwnx_txq.c` | SKB queueing to `txq->sk_list` |
+| `rwnx_hwq_process()` | `rwnx_txq.c` | HW queue processing, size, id |
+| `rwnx_tx_push()` | `rwnx_tx.c` | Descriptor flags, `rate_config`, `sw_txhdr->rwnx_vif` check |
+| `aicwf_frame_tx()` | `aicwf_txrxif.c` | Bus interface submission, `usbdev->state` |
+| `aicwf_usb_bus_txdata()` | `aicwf_usb.c` | USB buffer dequeue, URB filling, vendor use-after-free fix |
+| `aicwf_usb_tx_process()` | `aicwf_usb.c` | URB submission (`usb_submit_urb`), pipe, buffer length |
+| `aicwf_usb_tx_complete()` | `aicwf_usb.c` | URB status, `usb_txc_sta_flowctrl`, SKB freeing, queue return |
+| `usb_txc_sta_flowctrl()` | `aicwf_usb.c` | `usb_buf`, `usb_dev`, `hostdesc`, `sta_idx`, flags |
+| `aicwf_usb_rx_complete()` | `aicwf_usb.c` | RX URB status, actual_len, skb pointer, queue enqueue |
+| `aicwf_process_rxframes()` | `aicwf_txrxif.c` | Frame dequeue, frame type dispatch (DATA, DATA_CFM, CMD_RSP, PRINT) |
+| `aicwf_tasklet_rxframes()` | `aicwf_txrxif.c` | RX tasklet entry & processing |
+| `rwnx_rxdataind_aicwf()` | `rwnx_rx.c` | RX data indication entry, skb pointer, rx_priv |
+| `rwnx_rx_monitor()` | `rwnx_rx.c` | `rwnx_vif`, radiotap length, `netif_receive_skb()` submission |
+| `aicwf_dev_skb_free()` | `aicwf_txrxif.c` | SKB pointer, len, `dev_kfree_skb_any()` execution |
+| `aicwf_usb_host_tx_cfm_handler()` | `usb_host.c` | `env`, `used_idx`, `host_id`/`skb` pointer, `data[0]` status |
+| `rwnx_txdatacfm()` | `rwnx_tx.c` | `host_id`/`skb`, `txhdr`, `sw_txhdr`, `rwnx_vif`, `cfg80211_mgmt_tx_status`, `net_stats`, `kmem_cache_free`, `consume_skb` |
+| `rwnx_txq_confirm_any()` | `rwnx_txq.c` | `txq`, `hwq`, `sw_txhdr`, `hwq_id`, `cfm_balance` |
+| `rwnx_rx_handle_msg()` | `rwnx_msg_rx.c` | Message ID (`msg->id`), Type (`MSG_T`), Index (`MSG_I`), handler dispatch |
 
 ---
 
-## 3. Firmware Communication Analysis
-
-- **Interface Setup (`MM_ADD_IF_REQ`)**:
-  - When the monitor VIF is opened/added, the driver sends firmware message `MM_ADD_IF_REQ` (`rwnx_msg_tx.c`) with `type = MM_MONITOR`.
-- **Packet Transmission (`TXU_CNTRL_MGMT` / Data EP)**:
-  - Monitor injection frames construct a `txdesc_api` header with `flags = TXU_CNTRL_MGMT` and `staid = 0xFF`.
-  - Frames are transmitted over the USB bulk out endpoint (`bulk_out_pipe`) carrying the 4-byte AIC USB header, `txdesc_api`, and 802.11 payload.
-- **Firmware Capabilities**:
-  - Driver relies on `CONFIG_RWNX_MON_DATA` and `CONFIG_RWNX_MON_XMIT` build options.
-
----
-
-## 4. Repository Layout & Artifact Locations
+## 3. Repository Layout & Artifact Locations
 
 ```
 /workspaces/monitor-debug-build/
 ├── aic8800_fdrv.ko              # Rebuilt instrumented debug kernel module binary
-├── git.diff                     # Complete instrumentation patch diff
+├── git.diff                     # Complete instrumentation patch diff (1567 lines)
 ├── build.log                    # Compilation log
 ├── README.md                    # Instrumentation details
 └── SHA256SUMS                   # Artifact checksums
@@ -125,7 +124,7 @@ Every step in the monitor injection path has been instrumented with `printk(KERN
 └── source_patch/
     ├── rwnx_main.diff           # VIF interface validation patch
     ├── rwnx_tx.diff             # Monitor TX queue patch
-    └── monitor_tx_instrumentation.diff # Full MONDBG instrumentation & NULL check patch
+    └── monitor_tx_instrumentation.diff # Full MONDBG instrumentation & NULL check patch (1567 lines)
 ```
 
 ---

@@ -1,87 +1,49 @@
-# Changelog
+# Changelog - AIC8800D80 Monitor Mode Driver Patches
 
-## 2026-08-01
+All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode and packet injection are documented in this file.
 
-### Monitor TX Injection Instrumentation Debug Build
+## [2026-08-01] - Debug Instrumentation Phase 2 (Post-TX Completion & RX Message Path)
 
-- Instrumented the complete monitor mode TX injection path with `printk(KERN_ERR "MONDBG: ...\n")` logging:
-  - `rwnx_select_queue()` ([`rwnx_main.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c))
-  - `rwnx_select_txq()` ([`rwnx_tx.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c))
-  - `rwnx_start_monitor_if_xmit()` ([`rwnx_tx.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c))
-  - `rwnx_txq_queue_skb()` ([`rwnx_txq.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_txq.c))
-  - `rwnx_hwq_process()` ([`rwnx_txq.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_txq.c))
-  - `rwnx_tx_push()` ([`rwnx_tx.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c))
-  - `aicwf_frame_tx()` ([`aicwf_txrxif.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_txrxif.c))
-  - `aicwf_usb_bus_txdata()` ([`aicwf_usb.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c))
-  - `aicwf_usb_tx_process()` ([`aicwf_usb.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c))
-  - `aicwf_usb_tx_complete()` ([`aicwf_usb.c`](file:///workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_usb.c))
-- Added defensive NULL pointer checks before every pointer dereference across all listed functions to prevent kernel Oops crashes and log exact NULL pointer origins.
-- Identified and fixed a vendor driver use-after-free bug in `aicwf_usb_bus_txdata()` where `txhdr->sw_hdr->need_cfm` was accessed after `txhdr->sw_hdr` had been freed by `kmem_cache_free()`.
-- Built the debug driver module `aic8800_fdrv.ko` and packaged it under `/workspaces/monitor-debug-build/` alongside `git.diff`, `build.log`, `SHA256SUMS`, and `README.md`.
-- Added patch file `monitor_tx_instrumentation.diff` into `source_patch/`.
+### Added
+- **Post-USB-TX Completion Tracing (`MONDBG:`)**:
+  - `usb_txc_sta_flowctrl()` (`aicwf_usb.c`): Log entry, `usb_buf`, `usb_dev`, `hostdesc`, `sta_idx`, flags, and NULL-check guards before dereferencing `usb_buf->skb`.
+  - `aicwf_usb_tx_complete()` (`aicwf_usb.c`): Log entry, URB completion status, actual length, `cfm` flag, `skb` pointer, freeing non-cfm SKB via `dev_kfree_skb_any()`, and returning buffer to `tx_free_list`.
+  - `aicwf_usb_rx_complete()` (`aicwf_usb.c`): Log entry for both prealloc and non-prealloc paths, URB status, length, enqueue to `rxq`, and signaling `busrx_trgg`.
+- **Firmware Message & RX Handling Tracing**:
+  - `aicwf_process_rxframes()` (`aicwf_txrxif.c`): Log entry, frame dequeue, and dispatch to `rwnx_rx_handle_msg` (CMD_RSP), `aicwf_usb_host_tx_cfm_handler` (DATA_CFM), `rwnx_rxdataind_aicwf` (DATA), and `rwnx_rx_handle_print` (PRINT).
+  - `aicwf_tasklet_rxframes()` (`aicwf_txrxif.c`): Log entry and tasklet loop processing.
+  - `rwnx_rxdataind_aicwf()` (`rwnx_rx.c`): Log entry, `hostid`/`skb`, and `rx_priv` pointers.
+  - `rwnx_rx_monitor()` (`rwnx_rx.c`): Log entry, `rwnx_vif`, radiotap length, and `netif_receive_skb()` execution.
+  - `aicwf_dev_skb_free()` (`aicwf_txrxif.c`): Log entry, SKB pointer, len, and `dev_kfree_skb_any()`.
+- **Host TX Confirmation & Driver Completion Tracing**:
+  - `aicwf_usb_host_tx_cfm_handler()` (`usb_host.c`): Log entry, `used_idx`, dequeued `host_id`/`skb`, status `data[0]`, and call to `rwnx_txdatacfm()`.
+  - `rwnx_txdatacfm()` (`rwnx_tx.c`): Log entry, `txhdr`, `sw_txhdr`, `rwnx_vif`, `rwnx_sta`, `flags`, call to `cfg80211_mgmt_tx_status()`, call to `rwnx_txq_confirm_any()`, update of `net_stats`, `kmem_cache_free()`, and `consume_skb()`. Added NULL guards for `sw_txhdr->rwnx_vif`.
+  - `rwnx_txq_confirm_any()` (`rwnx_txq.c`): Log entry, `txq`, `hwq`, `sw_txhdr`, `hwq_id`, and `cfm_balance`.
+  - `rwnx_rx_handle_msg()` (`rwnx_msg_rx.c`): Log entry, `msg->id`, `MSG_T`, `MSG_I`, and handler dispatch.
 
-### Monitor TX Injection Fix (Previous Pass)
-
-- Updated the monitor injection path in `rwnx_tx.c`
-- Switched monitor TX to the VIF unknown TXQ so injection no longer depends on peer-STA state
-- Added a radiotap iterator guard to avoid null-field dereferences during monitor injection
-- Left `driver/aic_load_fw.ko` unchanged because it was not rebuilt for this patch
-
-### Driver
-
-- Verified AIC8800 USB driver rebuild succeeds with monitor mode support enabled
-- Confirmed `CONFIG_RWNX_MON_DATA` is enabled
-- Confirmed the earlier `RWNX_VIF_TYPE(vif_el)` fix remains included
-- Confirmed the `NL80211_IFTYPE_P2P_DEVICE` exclusion remains included
-- Confirmed the monitor interface can coexist with a managed interface without the earlier interface-removal failure
-
-### Firmware
-
-- Verified firmware loads correctly on the patched driver
-- Confirmed the driver loads automatically at boot
-
-### Modules
-
-- Verified rebuilt debug module: `/workspaces/monitor-debug-build/aic8800_fdrv.ko`
-- Confirmed `aic_load_fw.ko` remains unchanged
-
-### Runtime
-
-- Verified post-reboot interface layout:
-  - AIC8800: `wlan0` -> managed, `wlan1` -> monitor
-  - MT7601U: `wlan2` -> managed
-- Verified managed Wi-Fi remains connected while the monitor interface exists
+### Changed
+- Rebuilt `aic8800_fdrv.ko` at `/workspaces/monitor-debug-build/aic8800_fdrv.ko`.
+- Updated `source_patch/monitor_tx_instrumentation.diff` (1567 lines).
+- Updated `build.log` and `SHA256SUMS`.
 
 ---
 
-## 2026-07-31
+## [2026-08-01] - Debug Instrumentation Phase 1 (Pre-TX & Vendor UAF Fix)
 
-### Driver
+### Added
+- **Pre-TX Instrumentation (`MONDBG:`)**:
+  - `rwnx_select_queue()` (`rwnx_main.c`)
+  - `rwnx_select_txq()` (`rwnx_tx.c`)
+  - `rwnx_start_monitor_if_xmit()` (`rwnx_tx.c`)
+  - `rwnx_txq_queue_skb()` (`rwnx_txq.c`)
+  - `rwnx_hwq_process()` (`rwnx_txq.c`)
+  - `rwnx_tx_push()` (`rwnx_tx.c`)
+  - `aicwf_frame_tx()` (`aicwf_txrxif.c`)
+  - `aicwf_usb_bus_txdata()` (`aicwf_usb.c`)
+  - `aicwf_usb_tx_process()` (`aicwf_usb.c`)
+- **Vendor Bug Fix**: Fixed vendor use-after-free bug in `aicwf_usb_bus_txdata()` where `txhdr->sw_hdr->need_cfm` was evaluated after `txhdr->sw_hdr` was freed via `kmem_cache_free`.
 
-- Patched monitor mode validation
-- Fixed interface type check
-- Added P2P_DEVICE exclusion
+---
 
-### Firmware
-
-- Fixed firmware search path
-- Added permanent firmware symlink
-
-### Modules
-
-- Built
-  - aic_load_fw.ko
-  - aic8800_fdrv.ko
-
-### Installation
-
-- Installed modules into `/lib/modules/5.15.147-21-a733/extra`
-- Added automatic loading through `/etc/modules-load.d/aic8800.conf`
-
-### Verified
-
-- Module loading
-- Firmware upload
-- Driver initialization
-- Wi-Fi interface creation
-- Successful reboot
+## [2024-11-19] - Initial Driver Release (Vendor RWNX v6.4.3.0)
+- Initial vendor release for AIC8800D80 USB Wi-Fi chipset.

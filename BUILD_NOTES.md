@@ -2,265 +2,113 @@
 
 ## Environment
 
-Board:
-- Radxa Cubie A7Z
-
-OS:
-- Official Radxa Debian Minimal
-
-Kernel:
-- 5.15.147-21-a733
-
-USB Wi-Fi Adapter:
-- MediaTek MT7601U
-- USB ID: 148f:7601
+* **Target Board:** Radxa Cubie A7Z
+* **OS:** Official Radxa Debian Minimal
+* **Target Kernel:** `5.15.147-21-a733`
+* **USB Wi-Fi Adapter:** MediaTek MT7601U (USB ID: `148f:7601`)
+* **Kernel Superproject Repository:** `https://github.com/radxa-pkg/linux-a733`
 
 ---
 
-# Problem
+## Problem Overview
 
-The stock Radxa kernel did not include MT7601U support.
-
-Kernel config:
-
-```
-CONFIG_MT7601U is not set
-```
-
-As a result, the USB Wi-Fi adapter was detected by USB but no wireless interface appeared.
+The stock Radxa kernel image had MediaTek MT7601U support disabled (`CONFIG_MT7601U is not set`). As a result, plugging in the MT7601U USB Wi-Fi adapter detected the USB device, but no wireless network interface appeared (`wlan1` missing).
 
 ---
 
-# Repository Used
+## Kernel Configuration & Submodule Setup
 
-Kernel source:
+### 1. Repository Initialisation
+Clone the `linux-a733` superproject with all required submodules:
 
-https://github.com/radxa-pkg/linux-a733
-
----
-
-# What Was Changed
-
-Enabled:
-
-```
-CONFIG_MT7601U=m
+```bash
+git clone --recursive https://github.com/radxa-pkg/linux-a733.git
+cd linux-a733
+make pre_build
 ```
 
-using
+### 2. Tracked Config Workflow
+The kernel configuration is built from the tracked `device-a733` submodule (`bsp_defconfig` / `bsp.config`):
 
-```
-scripts/config --module MT7601U
-```
-
-followed by
-
-```
-make olddefconfig
+```bash
+cd src
+make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc BSP_TOP=bsp/ LICHEE_KERN_DIR=./ defconfig bsp.config
+./scripts/config --set-str LOCALVERSION "-21-a733"
+./scripts/config --disable LOCALVERSION_AUTO
+./scripts/config --disable NUMA
+./scripts/config --module MT7601U
+make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc BSP_TOP=bsp/ LICHEE_KERN_DIR=./ olddefconfig
 ```
 
 ---
 
-# Important Discovery #1
+## Validated Automated Module Build Command
 
-Do NOT build the entire kernel.
+Use the global reusable build script located at the root of `linux-a733`:
 
-Building all modules fails because the BSP source tree is incomplete.
-
-Failure encountered:
-
-```
-cedar_ve.h: No such file or directory
+```bash
+cd linux-a733
+./build-module.sh drivers/net/wireless/mediatek/mt7601u
 ```
 
-Instead, build only the MT7601U module.
+### Key Build Parameters Explained
+* **`LOCALVERSION=`**: Passed as empty on make invocations so `scripts/setlocalversion` does NOT append `+` to `vermagic`.
+* **`HOSTCC=gcc`**: Overrides `HOSTCC=$(CROSS_COMPILE)gcc` to prevent host build tools from failing with `scripts/basic/fixdep: Exec format error`.
+* **`M=drivers/net/wireless/mediatek/mt7601u`**: Restricts compilation to the specific module directory, bypassing broken/incomplete BSP components (e.g. `cedar_ve.h`).
+* **`EXTRA_CFLAGS="-I<top_dir>/bsp/drivers/usb/host"`**: Resolves relative USB host header includes during `vmlinux` symbol table generation.
 
 ---
 
-# Build Command
+## Module Verification Results
 
-```
-LOCALVERSION= make \
- ARCH=arm64 \
- CROSS_COMPILE=aarch64-linux-gnu- \
- HOSTCC=gcc \
- BSP_TOP=bsp/ \
- LICHEE_KERN_DIR=./ \
- M=drivers/net/wireless/mediatek/mt7601u \
- modules
+After compilation, verify the module dependencies and release string:
+
+```bash
+modinfo src/drivers/net/wireless/mediatek/mt7601u/mt7601u.ko | grep -E 'depends|vermagic'
 ```
 
----
-
-# Important Discovery #2
-
-The build system incorrectly used
-
-```
-HOSTCC=$(CROSS_COMPILE)gcc
-```
-
-This causes
-
-```
-scripts/basic/fixdep: Exec format error
-```
-
-Changing it to
-
-```
-HOSTCC=gcc
-```
-
-fixed the build.
-
----
-
-# Important Discovery #3
-
-The module MUST have identical vermagic.
-
-Wrong:
-
-```
-5.15.147+
-```
-
-Correct:
-
-```
-5.15.147-21-a733
-```
-
-The fix was:
-
-```
-CONFIG_LOCALVERSION="-21-a733"
-```
-
-and rebuilding with
-
-```
-LOCALVERSION=
-```
-
-Otherwise the build system appends a "+".
-
----
-
-# Important Discovery #4
-
-The module loaded only after loading mac80211.
-
-Before:
-
-```
-Unknown symbol ieee80211_register_hw
-Unknown symbol ieee80211_alloc_hw_nm
-...
-```
-
-Fix:
-
-```
-sudo modprobe mac80211
-sudo insmod mt7601u.ko
+**Validated Output:**
+```text
+depends:        cfg80211,mac80211
+vermagic:       5.15.147-21-a733 SMP preempt mod_unload aarch64
 ```
 
 ---
 
-# Successful Driver Load
+## Target Installation & Deployment Checklist (On Radxa Device)
 
-Kernel log:
-
-```
-ASIC revision: 76010001
-Firmware Version: 0.1.00
-EEPROM ver:0d
-ieee80211 phy1
-registered new interface driver mt7601u
-```
-
-New interface:
-
-```
-wlan1
-```
-
----
-
-# Files
-
-Working module:
-
-```
-mt7601u.ko
-```
-
-Built for:
-
-```
-Kernel:
-5.15.147-21-a733
-```
-
----
-
-# Lessons Learned
-
-- Always compare `vermagic` first.
-- `CONFIG_MODVERSIONS` is disabled on this kernel, so symbol CRCs are not the issue.
-- Do not build the entire BSP unless required.
-- Building a single module is much faster and avoids missing BSP components.
-- Vendor kernels may require manually loading dependency modules (`mac80211`) before inserting custom drivers.
-- Keep a copy of the compiled module after every successful build.
-
----
-
-# Future Checklist
-
-1. Verify kernel version
-
-```
+### 1. Verify Running Kernel
+```bash
 uname -r
+# Expected: 5.15.147-21-a733
 ```
 
-2. Verify module
-
-```
+### 2. Verify Module `vermagic`
+```bash
 modinfo mt7601u.ko | grep vermagic
+# Expected: 5.15.147-21-a733 SMP preempt mod_unload aarch64
 ```
 
-3. Load dependency
-
-```
+### 3. Load Dependency & Driver Module
+```bash
+# Load mac80211 dependency first
 sudo modprobe mac80211
-```
 
-4. Load driver
-
-```
+# Insert custom compiled driver
 sudo insmod mt7601u.ko
 ```
 
-5. Verify
-
-```
+### 4. Verify Network Interface Creation
+```bash
 ip link
 iw dev
 ```
-
-Expected:
-
-```
-wlan1
-```
+**Expected Output:** Interface `wlan1` appears and is operational.
 
 ---
 
-# Next Improvements
+## MT7601U AP Mode Experiment Note
 
-- Install `mt7601u.ko` under `/lib/modules/$(uname -r)/extra`
-- Run `depmod`
-- Allow loading via `modprobe mt7601u`
-- Automate loading during boot
+The AP interface mode experiment is located on branch `mt7601u-ap-experiment` in `src/`:
+* Source modification: [`src/drivers/net/wireless/mediatek/mt7601u/init.c`](../linux-a733/src/drivers/net/wireless/mediatek/mt7601u/init.c) line 612 adds `BIT(NL80211_IFTYPE_AP)` to `wiphy->interface_modes`.
+* This change is an **experimental driver feature** and is kept isolated from the core global build system.

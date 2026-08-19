@@ -209,8 +209,30 @@ wlan1: AP-ENABLED
   ```bash
   sudo modprobe cfg80211
   sudo modprobe mac80211
-  sudo insmod mt7601u.ko
+  sudo insmod driver/mt7601u.ko
   ```
+
+### 4. Regulatory Domain and Channel Incompatibility (NO-IR)
+* **Observed Symptom:** NetworkManager hotspot fails to start, or AP creation fails on auto-selected channels.
+* **Root Cause:** NetworkManager defaulted to Channel 13 (`2472 MHz`). Under the default global regulatory domain (`00`), higher 2.4 GHz channels are flagged with `NO-IR` (No Initiating Radiation), preventing the kernel mac80211 stack from transmitting beacons.
+* **Fix:** Set the regulatory domain to the local region (e.g. `sudo iw reg set IN`) and lock the hotspot profile to a standard global channel (`802-11-wireless.channel 6`).
+
+### 5. Unsupported Security Ciphers and PMF (Protected Management Frames)
+* **Observed Symptom:** `wpa_supplicant` / NetworkManager fails immediately with `Failed to start AP functionality` when starting an AP connection profile.
+* **Root Cause:** Modern NetworkManager connection profiles default to negotiating WPA3/SAE, `WPA-PSK-SHA256`, or mandatory Protected Management Frames (PMF / 802.11w). The older `mt7601u` MAC hardware only supports legacy WPA2-PSK (AES-CCMP) in AP mode.
+* **Fix:** Explicitly configure the profile for standard WPA2-PSK with PMF disabled:
+  ```bash
+  sudo nmcli connection modify "MT7601U-Hotspot" 802-11-wireless-security.key-mgmt wpa-psk
+  sudo nmcli connection modify "MT7601U-Hotspot" 802-11-wireless-security.proto rsn
+  sudo nmcli connection modify "MT7601U-Hotspot" 802-11-wireless-security.pairwise ccmp
+  sudo nmcli connection modify "MT7601U-Hotspot" 802-11-wireless-security.group ccmp
+  sudo nmcli connection modify "MT7601U-Hotspot" 802-11-wireless-security.pmf 0
+  ```
+
+### 6. Interface Busy from Automatic Client Association Scan
+* **Observed Symptom:** Interface mode change fails with `Device or resource busy (-16)` when bringing up NetworkManager hotspot.
+* **Root Cause:** Whenever `wlan1` is brought up, NetworkManager automatically attempts to scan and associate it as a client (`ab 1`) before switching to the AP profile.
+* **Fix:** Explicitly bind the connection profile to the interface name (`connection.interface-name wlan1`) and configure shared routing mode (`ipv4.method shared`).
 
 ---
 

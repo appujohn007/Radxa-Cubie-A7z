@@ -1,0 +1,76 @@
+project: Radxa Cubie A7Z Driver & Release Documentation
+board: Radxa Cubie A7Z
+soc: Allwinner A733 (sun60iw2p1)
+os: Debian GNU/Linux 11 (Bullseye) / Official Radxa Debian Minimal
+kernel: 5.15.147-21-a733
+architecture: arm64
+cross_compiler: aarch64-linux-gnu-gcc
+host_compiler: gcc (x86_64)
+
+driver:
+  name: mt7601u
+  description: MediaTek MT7601U USB 802.11b/g/n wireless driver
+  usb_vid: "148f"
+  usb_pid: "7601"
+  subsystem: mac80211 / cfg80211
+  current_status: VERIFIED WORKING (Beacon / AP Mode Operations)
+
+known_good_artifact:
+  path: mt7601u.ko
+  sha256: 2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833
+  vermagic: 5.15.147-21-a733 SMP preempt mod_unload aarch64
+  dependencies:
+    - cfg80211
+    - mac80211
+  test_status: Tested on physical Radxa Cubie A7Z hardware
+
+patch:
+  path: patches/mt7601u-enable-ap-mode.patch
+  applies_cleanly: true
+  source_tree_path: drivers/net/wireless/mediatek/mt7601u
+  modified_files:
+    - init.c
+    - mac.c
+    - mac.h
+    - main.c
+    - mt7601u.h
+    - regs.h
+
+verified_features:
+  - AP mode advertised in wiphy interface_modes (managed, AP, AP/VLAN, monitor)
+  - Interface type switch to __ap via iw succeeds (exit 0)
+  - hostapd startup reaches AP-ENABLED state
+  - Hardware beacon transmission configured via MT_BEACON_TIME_CFG (0x1114)
+  - Beacon template uploaded to 0xC000 SRAM with MT_TXWI_FLAGS_TS flag
+  - SSID broadcast visible to external scanning Wi-Fi devices
+  - 802.11 probe requests received from scanning clients
+  - 802.11 probe responses transmitted with valid TSF timestamps
+  - Group WCID table entry (126) initialized via mt7601u_mac_wcid_setup()
+  - High-resolution pre-TBTT timer (8ms lead) and background workqueue active
+
+unverified_features:
+  - Client station association and 4-way WPA2-PSK handshake on hardware: NOT YET VERIFIED
+  - Bidirectional IP data plane (ping / iperf3) over AP link: NOT YET VERIFIED
+  - DHCP / NAT / Internet forwarding: NOT YET VERIFIED
+  - Power-save client multicast (DTIM) queueing: NOT YET IMPLEMENTED
+
+known_errors:
+  - error_code: -71 (EPROTO)
+    description: Low-level USB protocol error on sunxi-ehci host controller during hotplug/reset
+    impact: Transient USB transport disruption, not an AP logic flaw
+  - error_code: -110 (ETIMEDOUT)
+    description: USB device probe timeout during bus communication disruption
+    impact: Requires physical USB replug or bus reset
+  - error_code: -16 (EBUSY)
+    description: Interface busy when attempting mode switch while link is UP or claimed by NetworkManager
+    fix: Stop NetworkManager and set ip link wlan1 down prior to mode switch
+  - error_code: -95 (EOPNOTSUPP)
+    description: Occurs on stock driver when attempting AP mode switch because AP mode was not implemented
+
+recovery:
+  backup_path: /lib/modules/5.15.147-21-a733/extra/mt7601u.ko.original
+  procedure: Unload module, copy backup over kernel driver path, run depmod -a, reload module
+
+open_questions:
+  - Does hardware AES-CCMP encryption perform without frame drops under continuous client traffic load?
+  - What is the maximum throughput achievable with 1T1R 20MHz on Allwinner A733 USB 2.0?

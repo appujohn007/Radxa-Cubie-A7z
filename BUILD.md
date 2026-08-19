@@ -129,10 +129,12 @@ Running `build-module.sh bsp/drivers/net/wireless/aic8800/usb` compiles the Wi-F
 To keep experimental driver work strictly separated from the stable global build infrastructure:
 
 * **Stable Infrastructure:** `make pre_build`, `build-module.sh`, `bsp_defconfig`, and Kbuild environment parameters.
-* **MT7601U AP Experiment:**
-  * Branch: `mt7601u-ap-experiment` in `src/`.
-  * Source Change: [`src/drivers/net/wireless/mediatek/mt7601u/init.c`](../linux-a733/src/drivers/net/wireless/mediatek/mt7601u/init.c) line 612 adds `BIT(NL80211_IFTYPE_AP)` to `wiphy->interface_modes`.
-  * Status: **Experimental**. This change belongs solely to the feature experiment branch and is NOT part of the stable/global build infrastructure.
+* **MT7601U AP Implementation:**
+  * Status: **Verified Working (Beacon / AP Mode Operations)**.
+  * Canonical Patch: [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch).
+  * Full Documentation: See [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) for architecture, runtime test logs, and verification checklist.
+  * Known-Good Binary: [`mt7601u.ko`](mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
+  * AI Continuity Guide: See [`AI_HANDOFF.md`](AI_HANDOFF.md).
 
 ---
 

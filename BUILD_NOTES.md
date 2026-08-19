@@ -107,8 +107,11 @@ iw dev
 
 ---
 
-## MT7601U AP Mode Experiment Note
+## MT7601U AP Mode Status & Implementation
 
-The AP interface mode experiment is located on branch `mt7601u-ap-experiment` in `src/`:
-* Source modification: [`src/drivers/net/wireless/mediatek/mt7601u/init.c`](../linux-a733/src/drivers/net/wireless/mediatek/mt7601u/init.c) line 612 adds `BIT(NL80211_IFTYPE_AP)` to `wiphy->interface_modes`.
-* This change is an **experimental driver feature** and is kept isolated from the core global build system.
+The AP interface mode implementation is verified working on target hardware:
+* **Current Status:** Verified Working (Beaconing, SSID broadcast, probe requests/responses, `hostapd` reaching `AP-ENABLED`).
+* **Canonical Patch:** [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch).
+* **Known-Good Distributable Binary:** [`mt7601u.ko`](mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
+* **Authoritative Documentation:** See [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) for full technical analysis, hostapd runtime test logs, and verification checklist.
+* **AI Continuity Guide:** See [`AI_HANDOFF.md`](AI_HANDOFF.md).

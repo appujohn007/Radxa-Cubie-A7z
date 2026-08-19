@@ -85,7 +85,7 @@ uname -r
 
 ### 2. Verify Module `vermagic`
 ```bash
-modinfo mt7601u.ko | grep vermagic
+modinfo patches/mt7601u-ap-mode/driver/mt7601u.ko | grep vermagic
 # Expected: 5.15.147-21-a733 SMP preempt mod_unload aarch64
 ```
 
@@ -95,7 +95,7 @@ modinfo mt7601u.ko | grep vermagic
 sudo modprobe mac80211
 
 # Insert custom compiled driver
-sudo insmod mt7601u.ko
+sudo insmod patches/mt7601u-ap-mode/driver/mt7601u.ko
 ```
 
 ### 4. Verify Network Interface Creation
@@ -112,6 +112,6 @@ iw dev
 The AP interface mode implementation is verified working on target hardware:
 * **Current Status:** Verified Working (Beaconing, SSID broadcast, probe requests/responses, `hostapd` reaching `AP-ENABLED`).
 * **Canonical Patch:** [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch).
-* **Known-Good Distributable Binary:** [`mt7601u.ko`](mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
+* **Known-Good Distributable Binary:** [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
 * **Authoritative Documentation:** See [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) for full technical analysis, hostapd runtime test logs, and verification checklist.
 * **AI Continuity Guide:** See [`AI_HANDOFF.md`](AI_HANDOFF.md).

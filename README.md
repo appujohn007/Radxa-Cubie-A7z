@@ -37,7 +37,7 @@ Welcome to the official operational documentation, release packaging, custom dri
 
 * **Driver Subsystem:** `mac80211` / `cfg80211`
 * **USB ID:** `148f:7601`
-* **Binary Path:** [`mt7601u.ko`](mt7601u.ko) (and [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko))
+* **Binary Path:** [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko)
 * **Verified SHA256:** `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`
 * **Module `vermagic`:** `5.15.147-21-a733 SMP preempt mod_unload aarch64`
 * **Dependencies:** `cfg80211`, `mac80211`
@@ -49,7 +49,7 @@ Welcome to the official operational documentation, release packaging, custom dri
 sudo modprobe mac80211
 
 # 2. Insert verified driver module
-sudo insmod mt7601u.ko
+sudo insmod patches/mt7601u-ap-mode/driver/mt7601u.ko
 
 # 3. Configure interface for Access Point mode
 sudo systemctl stop NetworkManager wpa_supplicant 2>/dev/null || true
@@ -67,8 +67,7 @@ sudo hostapd /etc/hostapd/hostapd-mt7601u.conf
 
 | Artifact | Location | SHA256 Checksum | Vermagic | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **MT7601U AP Driver (Root)** | [`mt7601u.ko`](mt7601u.ko) | `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833` | `5.15.147-21-a733` | **Verified on Hardware** |
-| **MT7601U AP Driver (Subproject)** | [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko) | `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833` | `5.15.147-21-a733` | **Verified on Hardware** |
+| **MT7601U AP Driver** | [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko) | `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833` | `5.15.147-21-a733` | **Verified on Hardware** |
 | **MT7601U Source Patch** | [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch) | N/A (Unified Diff) | N/A | **Clean Apply on 5.15** |
 | **AIC8800 FDRV Driver** | `patches/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko` | Verified | `5.15.147-21-a733` | **Verified** |
 | **AIC8800 FW Loader** | `patches/aic8800d80-monitor-mode/driver/aic_load_fw.ko` | Verified | `5.15.147-21-a733` | **Verified** |

@@ -36,14 +36,15 @@ The development environment consists of two peer repositories in `/workspaces`:
 │   ├── MT7601U_AP_STATUS.md        <- Authoritative technical record & verification status
 │   ├── AI_HANDOFF.md               <- This document (self-contained AI memory)
 │   ├── project-state.yaml          <- Machine-readable project state
-│   ├── Readme.Md                   <- Repository overview & quick reference
-│   ├── mt7601u.ko                  <- VERIFIED KNOWN-GOOD AP-ENABLED MODULE (SHA256: 2c83f127...)
-│   ├── local_patch/                <- Local staging directory containing patched source & binary
-│   │   ├── mt7601u.ko              <- Exact copy of verified module (SHA256: 2c83f127...)
-│   │   └── drivers/...             <- Modified mt7601u source files
+│   ├── README.md                   <- Repository overview & quick reference
 │   ├── patches/                    <- Clean, distributable patch directory
 │   │   ├── mt7601u-enable-ap-mode.patch  <- Patch enabling full single-interface AP mode
-│   │   └── aic8800d80-monitor-mode/      <- AIC8800 Wi-Fi monitor mode experiment files
+│   │   ├── mt7601u-ap-mode/        <- MT7601U AP subproject (driver, patch, install guide)
+│   │   │   ├── driver/mt7601u.ko   <- VERIFIED KNOWN-GOOD AP MODULE (SHA256: 2c83f127...)
+│   │   │   ├── source_patch/       <- Source patch copy
+│   │   │   ├── README.md           <- Subproject overview
+│   │   │   └── INSTALL.md          <- Target installation steps
+│   │   └── aic8800d80-monitor-mode/<- AIC8800 Wi-Fi monitor mode experiment files
 │   ├── extracted/                  <- Extracted raw partitions from stock Radxa OS image
 │   └── rootfs/                     <- Mounted/extracted reference root filesystem
 │
@@ -91,13 +92,13 @@ The development environment consists of two peer repositories in `/workspaces`:
 ## 6. Known-Good vs. Known-Bad Artifacts
 
 ### Known-Good Artifacts
-* **File:** `/workspaces/Radxa-Cubie-A7z/mt7601u.ko` (and `/workspaces/Radxa-Cubie-A7z/local_patch/mt7601u.ko`)
+* **File:** `/workspaces/Radxa-Cubie-A7z/patches/mt7601u-ap-mode/driver/mt7601u.ko`
   * **Purpose:** Distributable, verified working AP-mode driver binary for `5.15.147-21-a733`.
   * **SHA256:** `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`
   * **`vermagic`:** `5.15.147-21-a733 SMP preempt mod_unload aarch64`
   * **Dependencies:** `cfg80211,mac80211`
   * **Status:** **VERIFIED WORKING on real Radxa hardware.**
-* **File:** `/workspaces/Radxa-Cubie-A7z/patches/mt7601u-enable-ap-mode.patch`
+* **File:** `/workspaces/Radxa-Cubie-A7z/patches/mt7601u-enable-ap-mode.patch` (and `patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch`)
   * **Purpose:** Source patch to cleanly recreate the AP-enabled driver from a clean kernel tree.
   * **Status:** **VERIFIED (applies cleanly, builds cleanly with 0 warnings/errors).**
 
@@ -116,7 +117,7 @@ sudo modprobe cfg80211
 sudo modprobe mac80211
 
 # 2. Insert experimental driver
-sudo insmod mt7601u.ko
+sudo insmod patches/mt7601u-ap-mode/driver/mt7601u.ko
 
 # 3. Stop network managers that may interfere with interface state
 sudo systemctl stop NetworkManager wpa_supplicant 2>/dev/null || true

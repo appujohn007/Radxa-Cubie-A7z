@@ -16,7 +16,7 @@ driver:
   current_status: VERIFIED WORKING (Beacon / AP Mode Operations)
 
 known_good_artifact:
-  path: mt7601u.ko
+  path: patches/mt7601u-ap-mode/driver/mt7601u.ko
   sha256: 2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833
   vermagic: 5.15.147-21-a733 SMP preempt mod_unload aarch64
   dependencies:

@@ -133,7 +133,7 @@ To keep experimental driver work strictly separated from the stable global build
   * Status: **Verified Working (Beacon / AP Mode Operations)**.
   * Canonical Patch: [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch).
   * Full Documentation: See [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) for architecture, runtime test logs, and verification checklist.
-  * Known-Good Binary: [`mt7601u.ko`](mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
+  * Known-Good Binary: [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
   * AI Continuity Guide: See [`AI_HANDOFF.md`](AI_HANDOFF.md).
 
 ---

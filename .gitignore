@@ -1,0 +1,12 @@
+# System & Editor artifacts
+*~
+*.swp
+*.swo
+.DS_Store
+*.tmp
+*.log
+
+# Large binary disk images & rootfs unpacks
+extracted/
+rootfs/
+local_patch/

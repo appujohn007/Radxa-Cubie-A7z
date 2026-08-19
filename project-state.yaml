@@ -25,7 +25,7 @@ known_good_artifact:
   test_status: Tested on physical Radxa Cubie A7Z hardware
 
 patch:
-  path: patches/mt7601u-enable-ap-mode.patch
+  path: patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch
   applies_cleanly: true
   source_tree_path: drivers/net/wireless/mediatek/mt7601u
   modified_files:

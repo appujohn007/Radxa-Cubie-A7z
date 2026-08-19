@@ -8,8 +8,8 @@ The development setup is separated into two repositories with distinct responsib
 * **Role:** Operations, release packaging, deployment guides, troubleshooting documentation, patch tracking, module backups, and deployment artifacts.
 * **Contents:**
   * Release-ready `.ko` kernel modules for deployment.
-  * Operational documentation ([`BUILD.md`](BUILD.md), [`BUILD_NOTES.md`](BUILD_NOTES.md), [`Readme.Md`](Readme.Md)).
-  * Driver patches (e.g. [`patches/aic8800d80-monitor-mode/`](patches/aic8800d80-monitor-mode/)).
+  * Operational documentation ([`BUILD.md`](BUILD.md), [`AI_HANDOFF.md`](AI_HANDOFF.md), [`README.md`](README.md)).
+  * Driver patches (e.g. [`patches/mt7601u-ap-mode/`](patches/mt7601u-ap-mode/), [`patches/aic8800d80-monitor-mode/`](patches/aic8800d80-monitor-mode/)).
 
 ### 2. `linux-a733` (Kernel Superproject & Source Repository)
 * **Role:** Canonical kernel source, vendor BSP submodules, device definitions, tracked kernel configuration sources, build scripts, and experimental source changes.
@@ -131,8 +131,8 @@ To keep experimental driver work strictly separated from the stable global build
 * **Stable Infrastructure:** `make pre_build`, `build-module.sh`, `bsp_defconfig`, and Kbuild environment parameters.
 * **MT7601U AP Implementation:**
   * Status: **Verified Working (Beacon / AP Mode Operations)**.
-  * Canonical Patch: [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch).
-  * Full Documentation: See [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) for architecture, runtime test logs, and verification checklist.
+  * Canonical Patch: [`patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch`](patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch).
+  * Full Documentation: See [`patches/mt7601u-ap-mode/STATUS.md`](patches/mt7601u-ap-mode/STATUS.md) for architecture, runtime test logs, and verification checklist.
   * Known-Good Binary: [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
   * AI Continuity Guide: See [`AI_HANDOFF.md`](AI_HANDOFF.md).
 

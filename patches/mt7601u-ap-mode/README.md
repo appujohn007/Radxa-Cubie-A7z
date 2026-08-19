@@ -1,6 +1,6 @@
 # MediaTek MT7601U Access Point (AP Mode) Patch Subproject
 
-[![Status](https://img.shields.io/badge/Status-VERIFIED%20WORKING-brightgreen.svg)](../../MT7601U_AP_STATUS.md)
+[![Status](https://img.shields.io/badge/Status-VERIFIED%20WORKING-brightgreen.svg)](STATUS.md)
 [![Kernel](https://img.shields.io/badge/Kernel-5.15.147--21--a733-blue.svg)](https://github.com/radxa-pkg/linux-a733)
 [![Device](https://img.shields.io/badge/USB%20ID-148f%3A7601-orange.svg)](https://mediatek.com)
 
@@ -21,6 +21,8 @@ patches/mt7601u-ap-mode/
 ├── README.md               <- This document (architecture & feature overview)
 ├── INSTALL.md              <- Target board deployment, mode transition & hostapd instructions
 ├── BUILD.md                <- Kbuild compilation workflow using build-module.sh
+├── STATUS.md               <- Authoritative technical record & hardware verification logs
+├── BUILD_NOTES.md          <- Developer build & kernel config checklist
 ├── CHANGELOG.md            <- Version history and development progression
 ├── driver/
 │   └── mt7601u.ko          <- Verified working module binary (SHA256: 2c83f127...)
@@ -54,6 +56,6 @@ patches/mt7601u-ap-mode/
 
 ## 🔗 Related Authoritative Documents
 
-* **Full Verification & Hardware Logs:** [`../../MT7601U_AP_STATUS.md`](../../MT7601U_AP_STATUS.md)
+* **Full Verification & Hardware Logs:** [`STATUS.md`](STATUS.md)
 * **AI Continuity & Project Memory:** [`../../AI_HANDOFF.md`](../../AI_HANDOFF.md)
 * **Root Repository Architecture:** [`../../README.md`](../../README.md)

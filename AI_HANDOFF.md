@@ -32,16 +32,18 @@ The development environment consists of two peer repositories in `/workspaces`:
 ├── Radxa-Cubie-A7z/                <- Operational & Release Repository (This repo)
 │   ├── .config                     <- Reference kernel .config for Cubie A7Z (CONFIG_MT7601U=m)
 │   ├── BUILD.md                    <- Master build architecture and troubleshooting guide
-│   ├── BUILD_NOTES.md              <- Step-by-step driver build and deployment checklist
-│   ├── MT7601U_AP_STATUS.md        <- Authoritative technical record & verification status
 │   ├── AI_HANDOFF.md               <- This document (self-contained AI memory)
 │   ├── project-state.yaml          <- Machine-readable project state
 │   ├── README.md                   <- Repository overview & quick reference
 │   ├── patches/                    <- Clean, distributable patch directory
-│   │   ├── mt7601u-enable-ap-mode.patch  <- Patch enabling full single-interface AP mode
-│   │   ├── mt7601u-ap-mode/        <- MT7601U AP subproject (driver, patch, install guide)
+│   │   ├── README.md               <- Patch catalog index
+│   │   ├── mt7601u-ap-mode/        <- MT7601U AP subproject
 │   │   │   ├── driver/mt7601u.ko   <- VERIFIED KNOWN-GOOD AP MODULE (SHA256: 2c83f127...)
-│   │   │   ├── source_patch/       <- Source patch copy
+│   │   │   ├── source_patch/       <- Source patch (mt7601u-enable-ap-mode.patch)
+│   │   │   ├── STATUS.md           <- Authoritative technical record & hardware verification logs
+│   │   │   ├── BUILD.md            <- Kbuild compilation workflow
+│   │   │   ├── BUILD_NOTES.md      <- Developer build notes
+│   │   │   ├── CHANGELOG.md        <- Version history
 │   │   │   ├── README.md           <- Subproject overview
 │   │   │   └── INSTALL.md          <- Target installation steps
 │   │   └── aic8800d80-monitor-mode/<- AIC8800 Wi-Fi monitor mode experiment files
@@ -98,7 +100,7 @@ The development environment consists of two peer repositories in `/workspaces`:
   * **`vermagic`:** `5.15.147-21-a733 SMP preempt mod_unload aarch64`
   * **Dependencies:** `cfg80211,mac80211`
   * **Status:** **VERIFIED WORKING on real Radxa hardware.**
-* **File:** `/workspaces/Radxa-Cubie-A7z/patches/mt7601u-enable-ap-mode.patch` (and `patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch`)
+* **File:** `/workspaces/Radxa-Cubie-A7z/patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch`
   * **Purpose:** Source patch to cleanly recreate the AP-enabled driver from a clean kernel tree.
   * **Status:** **VERIFIED (applies cleanly, builds cleanly with 0 warnings/errors).**
 
@@ -211,7 +213,7 @@ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc BSP_TOP=bsp/ LICHEE_
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc BSP_TOP=bsp/ LICHEE_KERN_DIR=./ olddefconfig
 
 # Step 4: Apply the AP mode patch
-patch -p1 < /workspaces/Radxa-Cubie-A7z/patches/mt7601u-enable-ap-mode.patch
+patch -p1 < /workspaces/Radxa-Cubie-A7z/patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch
 
 # Step 5: Compile the module
 cd /workspaces/linux-a733

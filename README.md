@@ -48,19 +48,18 @@ Radxa-Cubie-A7z/
 │
 ├── 📖 Master Documentation
 │   ├── README.md                   <- This document (general intro, architecture, specs & patch directory)
-│   ├── MT7601U_AP_STATUS.md        <- Authoritative technical record & hardware verification logs for MT7601U
-│   ├── AI_HANDOFF.md               <- Self-contained project memory for future AI sessions & developers
-│   ├── BUILD.md                    <- Master build system architecture, symbols & troubleshooting guide
-│   └── BUILD_NOTES.md              <- Step-by-step kernel module build checklist & deployment steps
+│   ├── BUILD.md                    <- Master kernel build system architecture, symbols & troubleshooting guide
+│   └── AI_HANDOFF.md               <- Self-contained project memory for future AI sessions & developers
 │
 └── 🧩 Patches & Driver Subprojects (`patches/`)
     ├── README.md                   <- Patch catalog index, feature matrix & patch application workflow
-    ├── mt7601u-enable-ap-mode.patch<- Root canonical patch file for MediaTek MT7601U AP mode
     │
     ├── 📡 mt7601u-ap-mode/         <- MediaTek MT7601U AP Mode Subproject
     │   ├── README.md               <- Architecture overview & technical details
     │   ├── INSTALL.md              <- Target board deployment & hostapd launch guide
     │   ├── BUILD.md                <- Kbuild compilation workflow with build-module.sh
+    │   ├── STATUS.md               <- Authoritative technical record & hardware verification logs
+    │   ├── BUILD_NOTES.md          <- Developer build & kernel config checklist
     │   ├── CHANGELOG.md            <- Version history & development iterations
     │   ├── driver/
     │   │   └── mt7601u.ko          <- VERIFIED WORKING module binary (SHA256: 2c83f127...)
@@ -89,7 +88,7 @@ All driver-specific instructions, deployment procedures, and precompiled binarie
 
 | Subproject Directory | Target Hardware | Feature Added | Verification Status | Direct Links |
 | :--- | :--- | :--- | :--- | :--- |
-| **[`patches/mt7601u-ap-mode/`](patches/mt7601u-ap-mode/)** | MediaTek MT7601U (`148f:7601`) | Access Point (AP / Hotspot) mode with autonomous MAC beaconing & `hostapd` | **VERIFIED WORKING** | [README](patches/mt7601u-ap-mode/README.md) · [INSTALL](patches/mt7601u-ap-mode/INSTALL.md) · [BUILD](patches/mt7601u-ap-mode/BUILD.md) |
+| **[`patches/mt7601u-ap-mode/`](patches/mt7601u-ap-mode/)** | MediaTek MT7601U (`148f:7601`) | Access Point (AP / Hotspot) mode with autonomous MAC beaconing & `hostapd` | **VERIFIED WORKING** | [README](patches/mt7601u-ap-mode/README.md) · [INSTALL](patches/mt7601u-ap-mode/INSTALL.md) · [BUILD](patches/mt7601u-ap-mode/BUILD.md) · [STATUS](patches/mt7601u-ap-mode/STATUS.md) |
 | **[`patches/aic8800d80-monitor-mode/`](patches/aic8800d80-monitor-mode/)** | AIC8800D80 USB Wi-Fi | Monitor mode packet reception, frame injection tracing & debug instrumentation | **READY / TESTING** | [README](patches/aic8800d80-monitor-mode/README.md) · [INSTALL](patches/aic8800d80-monitor-mode/INSTALL.md) · [BUILD](patches/aic8800d80-monitor-mode/BUILD.md) |
 
 ---
@@ -98,9 +97,9 @@ All driver-specific instructions, deployment procedures, and precompiled binarie
 
 | File | Primary Focus | Key Contents |
 | :--- | :--- | :--- |
-| [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) | **MT7601U Verification** | Hardware specs, exact `hostapd` runtime logs, beacon architecture, known errors (`-71`/`-110`), and recovery procedure. |
+| [`README.md`](README.md) | **General Landing Page** | Platform specs, repository mission, architecture tree, and patch catalog. |
+| [`BUILD.md`](BUILD.md) | **Build Architecture** | Reusable `build-module.sh` mechanics, symbol table (`Module.symvers`) generation, and 9-point troubleshooting guide. |
 | [`AI_HANDOFF.md`](AI_HANDOFF.md) | **AI Continuity Blueprint** | Full historical timeline, driver architecture breakdown, known limitations, open questions, and next experiment steps. |
 | [`project-state.yaml`](project-state.yaml) | **Machine-Readable State** | Structured YAML tracking board parameters, kernel configs, verified features, unverified items, and SHA256 sums. |
-| [`BUILD.md`](BUILD.md) | **Build Architecture** | Reusable `build-module.sh` mechanics, symbol table (`Module.symvers`) generation, and 9-point troubleshooting guide. |
-| [`BUILD_NOTES.md`](BUILD_NOTES.md) | **Developer Checklist** | Kbuild environment variables, `.config` management workflow, and target board deployment checklist. |
 | [`patches/README.md`](patches/README.md) | **Patch Catalog** | Directory of all available driver patches, unified diff guidelines, and patch application workflows. |
+| [`patches/mt7601u-ap-mode/STATUS.md`](patches/mt7601u-ap-mode/STATUS.md) | **MT7601U Verification** | Hardware specs, exact `hostapd` runtime logs, beacon architecture, known errors (`-71`/`-110`), and recovery procedure. |

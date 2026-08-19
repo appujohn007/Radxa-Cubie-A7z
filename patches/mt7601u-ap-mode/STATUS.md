@@ -55,8 +55,8 @@ The MediaTek MT7601U USB Wi-Fi driver has been successfully modified, compiled, 
 
 ## Experimental Driver (AP-Enabled)
 * **Source Changes:** Modifications across 6 files in `drivers/net/wireless/mediatek/mt7601u/` (`init.c`, `mac.c`, `mac.h`, `main.c`, `mt7601u.h`, `regs.h`).
-* **Canonical Patch:** [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch) (and [`patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch`](patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch))
-* **Known-Good Distributable Binary:** [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko)
+* **Canonical Patch:** [`source_patch/mt7601u-enable-ap-mode.patch`](source_patch/mt7601u-enable-ap-mode.patch)
+* **Known-Good Distributable Binary:** [`driver/mt7601u.ko`](driver/mt7601u.ko)
 * **Binary SHA256:** `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`
 * **Module `vermagic`:** `5.15.147-21-a733 SMP preempt mod_unload aarch64`
 * **Dependencies:** `cfg80211,mac80211`
@@ -73,7 +73,7 @@ The MediaTek MT7601U USB Wi-Fi driver has been successfully modified, compiled, 
 ### 1. Module Loading & Interface Initialization
 ```bash
 sudo modprobe mac80211
-sudo insmod patches/mt7601u-ap-mode/driver/mt7601u.ko
+sudo insmod driver/mt7601u.ko
 ```
 
 ### 2. Interface Capability Inspection (`iw phy info`)
@@ -254,7 +254,7 @@ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc BSP_TOP=bsp/ LICHEE_
 make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc BSP_TOP=bsp/ LICHEE_KERN_DIR=./ olddefconfig
 
 # 4. Apply the AP mode patch
-patch -p1 < /workspaces/Radxa-Cubie-A7z/patches/mt7601u-enable-ap-mode.patch
+patch -p1 < /workspaces/Radxa-Cubie-A7z/patches/mt7601u-ap-mode/source_patch/mt7601u-enable-ap-mode.patch
 
 # 5. Build the module using the global build script
 cd /workspaces/linux-a733

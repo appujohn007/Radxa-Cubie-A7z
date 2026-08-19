@@ -111,7 +111,7 @@ iw dev
 
 The AP interface mode implementation is verified working on target hardware:
 * **Current Status:** Verified Working (Beaconing, SSID broadcast, probe requests/responses, `hostapd` reaching `AP-ENABLED`).
-* **Canonical Patch:** [`patches/mt7601u-enable-ap-mode.patch`](patches/mt7601u-enable-ap-mode.patch).
-* **Known-Good Distributable Binary:** [`patches/mt7601u-ap-mode/driver/mt7601u.ko`](patches/mt7601u-ap-mode/driver/mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
-* **Authoritative Documentation:** See [`MT7601U_AP_STATUS.md`](MT7601U_AP_STATUS.md) for full technical analysis, hostapd runtime test logs, and verification checklist.
-* **AI Continuity Guide:** See [`AI_HANDOFF.md`](AI_HANDOFF.md).
+* **Canonical Patch:** [`source_patch/mt7601u-enable-ap-mode.patch`](source_patch/mt7601u-enable-ap-mode.patch).
+* **Known-Good Distributable Binary:** [`driver/mt7601u.ko`](driver/mt7601u.ko) (SHA256: `2c83f127c331a6ee0c35f7323e13b2491f287a2c4abf08220f79644a7b760833`).
+* **Authoritative Documentation:** See [`STATUS.md`](STATUS.md) for full technical analysis, hostapd runtime test logs, and verification checklist.
+* **AI Continuity Guide:** See [`../../AI_HANDOFF.md`](../../AI_HANDOFF.md).

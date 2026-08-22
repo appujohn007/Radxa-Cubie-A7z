@@ -3,8 +3,8 @@
 ## Deployment Safety Overview
 
 This deployment is specifically designed for environments where:
-- `wlan1` handles the active SSH management connection (must not be disrupted).
-- `wlan0` is the target AIC8800 internal Wi-Fi interface to be set to monitor mode.
+- `wlan1` (MediaTek MT7601U) handles the active SSH management connection (`10.150.138.121:22`) and must NOT be disrupted.
+- `wlan0` (AIC8800) is the target internal Wi-Fi interface to be set to monitor mode.
 
 ---
 
@@ -23,50 +23,44 @@ cd /tmp/aic8800d80-monitor-mode/deploy
 sudo ./deploy.sh
 ```
 
-The script automatically:
-1. Verifies kernel version compatibility.
-2. Checks `wlan1` status and protects active SSH connections.
-3. Validates binary checksums against `SHA256SUMS`.
-4. Creates a timestamped backup in `/var/backups/aic8800-driver-<timestamp>`.
-5. Installs the patched `aic8800_fdrv.ko` module and executes `depmod -a`.
-6. Sets NetworkManager to unmanaged on `wlan0` so `wlan1` stays undisturbed.
-
----
-
-## 2. Activating the New Driver
-
-### Option A: Reboot (Recommended & Safest)
+Or install manually to the target DKMS updates directory:
 ```bash
-sudo reboot
-```
-
-### Option B: Live Module Reload
-```bash
-sudo ip link set wlan0 down
-sudo modprobe -r aic8800_fdrv
-sudo modprobe aic8800_fdrv
+sudo mkdir -p /lib/modules/5.15.147-21-a733/updates/dkms/
+sudo cp /tmp/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko /lib/modules/5.15.147-21-a733/updates/dkms/
+sudo cp /tmp/aic8800d80-monitor-mode/driver/aic_load_fw.ko /lib/modules/5.15.147-21-a733/updates/dkms/
+sudo depmod -a 5.15.147-21-a733
 ```
 
 ---
 
-## 3. Real Hardware Verification Procedure
+## 2. Activating the Patched Driver (Live Driver Swap)
 
-### Test 1: Verify Pre-Conditions
+The driver swap can be executed live while preserving SSH over `wlan1`:
+
 ```bash
+# Verify wlan1 is your active SSH interface
 echo "$SSH_CONNECTION"
-ip -br addr
-iw dev
-```
-Confirm that SSH enters through `wlan1`.
 
-### Test 2: Switch wlan0 to Monitor Mode
+# Unload stock driver
+sudo rmmod aic8800_fdrv
+
+# Load patched driver
+sudo modprobe aic8800_fdrv_usb
+```
+
+Verify that `wlan0` reappears and `wlan1` remains connected.
+
+---
+
+## 3. Real Hardware Monitor Mode Test Procedure
+
+### Test 1: Switch wlan0 to Monitor Mode (Verified Succeeded)
 ```bash
 sudo ip link set wlan0 down
 sudo iw dev wlan0 set type monitor
-sudo ip link set wlan0 up
 ```
 
-### Test 3: Verify Interface State
+Verify interface type:
 ```bash
 iw dev wlan0 info
 ```
@@ -78,16 +72,21 @@ Interface wlan0
     addr <mac>
     type monitor
     wiphy <phy>
-    channel <ch>
 ```
-Confirm `wlan1` remains connected and active in managed mode.
 
-### Test 4: Verify Monitor Packet Capture (RX)
+> [!NOTE]
+> **NetworkManager Observation**: If NetworkManager is managing `wlan0`, running `sudo ip link set wlan0 up` may trigger NetworkManager to restore managed mode and reconnect to an existing Wi-Fi profile. To prevent NetworkManager from taking over the interface, configure it as unmanaged:
+> ```bash
+> sudo nmcli device set wlan0 managed no
+> sudo ip link set wlan0 up
+> ```
+
+### Test 2: Monitor Capture (RX) Test (Pending Live Validation)
 ```bash
 sudo tcpdump -i wlan0 -e -n -c 20
 ```
 
-### Test 5: Verify Monitor Injection (TX)
+### Test 3: Packet Injection (TX) Test (Pending Live Validation)
 ```bash
 sudo aireplay-ng --test wlan0
 ```

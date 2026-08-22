@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains the production-quality kernel driver patch, build references, and deployment package for enabling **802.11 Monitor Mode & Packet Injection** on the **AIC8800D80** internal Wi-Fi chipset of the **Radxa Cubie A7Z** (Allwinner A733 / `sun60iw2p1`, ARM64, Kernel `5.15.147-21-a733`).
+This directory contains the production-quality kernel driver patch, build references, deployment package, and hardware validation records for enabling **802.11 Monitor Mode & Packet Injection** on the **AIC8800D80** internal Wi-Fi chipset of the **Radxa Cubie A7Z** (Allwinner A733 / `sun60iw2p1`, ARM64, Kernel `5.15.147-21-a733`).
 
 ---
 
@@ -67,21 +67,70 @@ The fix is organized into two minimal, logical layers:
 
 ---
 
-## 3. Verification & Validation Status
+## 3. Verification & Validation Status Matrix
 
 | Layer / Capability | Status | Evidence / Notes |
 |---|---|---|
-| **Source Code Validation** | **SOURCE VERIFIED** | Direct AST and call-graph verification against `rwnx_main.c`, `rwnx_tx.c`, `rwnx_rx.c` |
-| **Cross-Compilation** | **BUILD VERIFIED** | Built cleanly with `aarch64-linux-gnu-gcc 13.3.0` against Linux 5.15.147-21-a733 |
-| **Module Metadata / Vermagic** | **MODULE VERIFIED** | Vermagic: `5.15.147-21-a733 SMP preempt mod_unload aarch64` (exact match) |
-| **Imported / Exported Symbols** | **SYMBOL VERIFIED** | Matched against `Module.symvers` / `vmlinux.symvers` |
-| **SSH / wlan1 Coexistence** | **PROTECTION VERIFIED** | Deployment script isolates `wlan0`; `wlan1` remains untouched on active SSH |
-| **Hardware Monitor Mode Switch** | **DEPLOYMENT READY** | Packaged in `deploy/` with deterministic deployment and rollback scripts |
-| **Hardware Monitor RX / TX** | **DEPLOYMENT READY** | Code-audited for packet reception (`rwnx_rx_monitor`) and injection (`rwnx_start_monitor_if_xmit`) |
+| **Source Patch** | **VERIFIED** | Direct AST and call-graph verification against `rwnx_main.c`, `rwnx_tx.c`, `rwnx_rx.c` |
+| **Cross-Build** | **VERIFIED** | Built cleanly with `aarch64-linux-gnu-gcc 13.3.0` against Linux `5.15.147-21-a733` |
+| **Module Vermagic** | **VERIFIED** | `5.15.147-21-a733 SMP preempt mod_unload aarch64` (exact match) |
+| **Module SHA256** | **VERIFIED** | `aic8800_fdrv.ko`: `ce9659f42b35c25b459629dd1c39d8e3c5682167debe506e06a7f00fe5ffb6bd`<br>`aic_load_fw.ko`: `ba2582887defecb8dfc57cafcdbe99bb184f9cb47344da1e285d12362dcc1f43` |
+| **Deployment** | **VERIFIED** | Deployed to `/lib/modules/5.15.147-21-a733/updates/dkms/` with `depmod -a` |
+| **Patched Driver Load** | **VERIFIED** | Loaded via `modprobe aic8800_fdrv_usb`; initialized cleanly on physical board |
+| **wlan1/SSH Preservation** | **VERIFIED** | Active SSH over `wlan1` (`10.150.138.121:22` on MT7601U) remained 100% operational |
+| **wlan0 Monitor-Mode Switching** | **VERIFIED ON REAL HARDWARE** | `sudo iw dev wlan0 set type monitor` succeeded; `iw dev` reports `type monitor` |
+| **Original MON_DATA / -EIO Bug** | **FIXED AND VERIFIED ON REAL HARDWARE** | Previous `-EIO` error completely eliminated |
+| **Passive Monitor RX** | **NOT YET VERIFIED** | Not yet exercised in live capture test |
+| **Monitor TX** | **NOT VERIFIED** | Queue mapping and radiotap parsing logs observed; requires further validation |
+| **Packet Injection** | **NOT VERIFIED** | `aireplay-ng` injection test not yet completed |
+| **Persistent Monitor Mode with NetworkManager** | **NOT YET CONFIGURED/VERIFIED** | `sudo ip link set wlan0 up` triggers NetworkManager to restore managed mode and reconnect to SSID |
 
 ---
 
-## 4. Repository Structure
+## 4. Real-Hardware Validation Results (2026-08-22)
+
+### Target Hardware Environment
+- **Board**: Radxa Cubie A7Z
+- **Kernel**: `5.15.147-21-a733`
+- **Topology**:
+  - `wlan0`: AIC8800 internal Wi-Fi (Target)
+  - `wlan1`: MediaTek MT7601U external Wi-Fi (Protected SSH transport: `10.150.138.121`)
+
+### Actual Deployment & Test Sequence
+1. **Initial State**: Stock AIC driver loaded (`aic8800_fdrv`, `aic_load_fw`). Active SSH session established over `wlan1`.
+2. **Backup**: Stock modules backed up safely.
+3. **Installation**: Patched modules installed to `/lib/modules/5.15.147-21-a733/updates/dkms/`.
+4. **Module Dependency Refresh**: Executed `sudo depmod -a`.
+5. **Module Inspection**: Verified with `modinfo aic8800_fdrv_usb` and decompressed binary SHA256 checksum check.
+6. **Live Driver Swap**:
+   - Stock driver unloaded: `sudo rmmod aic8800_fdrv`
+   - `wlan1` / SSH transport remained fully operational without interruption.
+   - Patched driver loaded: `sudo modprobe aic8800_fdrv_usb`
+   - `wlan0` reappeared; `wlan1` remained connected.
+7. **Critical Mode Switching Test**:
+   ```bash
+   sudo iw dev wlan0 set type monitor
+   ```
+   **Result**: **SUCCEEDED** (Exit code 0).
+   Output from `iw dev`:
+   ```
+   Interface wlan0
+       type monitor
+   ```
+
+### Runtime Observations & Analysis
+- **Original Bug Fixed**: The stock failure (`Monitor+Data interface support (MON_DATA) disabled` / `-EIO`) is resolved on physical hardware.
+- **NetworkManager Interface Management**: When running `sudo ip link set wlan0 up`, `wlan0` was restored to managed mode by NetworkManager and reconnected to SSID `"ab"`. This confirms monitor mode is successfully accepted by the kernel/driver, but NetworkManager must be configured (e.g. `nmcli device set wlan0 managed no` or unmanaged keyfile rule) to maintain monitor mode persistence upon interface up.
+- **Monitor TX Path Kernel Traces**: Kernel logs during monitor activity showed:
+  - `monitor xmit: netif_carrier_on`
+  - `wlan0 selects TX queue 65535, but real number of TX queues is 257`
+  - `rwnx_start_monitor_if_xmit, skb_len=...`
+  - `rwnx_start_monitor_if_xmit itv`
+  These traces confirm the monitor transmission code path is active, but indicate further refinements may be needed for queue index handling and radiotap validation during active frame injection.
+
+---
+
+## 5. Repository Structure
 
 ```
 patches/aic8800d80-monitor-mode/
@@ -89,7 +138,7 @@ patches/aic8800d80-monitor-mode/
 ├── CHANGELOG.md              # Detailed chronological changelog
 ├── INSTALL.md                # Deployment and runtime test procedures
 ├── README.deploy.md          # Quick deployment reference
-├── README.md                 # Technical forensics and patch documentation
+├── README.md                 # Technical forensics, patch docs, and hardware results
 ├── SHA256SUMS                # Cryptographic checksums of all artifacts
 ├── deploy/
 │   ├── deploy.sh             # Safe deployment script (preserves wlan1/SSH)

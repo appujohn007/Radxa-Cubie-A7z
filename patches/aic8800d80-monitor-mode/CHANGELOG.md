@@ -2,6 +2,30 @@
 
 All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode and packet injection are documented in this file.
 
+## [2026-08-22] - Real-Hardware Validation on Radxa Cubie A7Z
+
+### Validated on Real Hardware
+- **Driver Deployment & Module Load**:
+  - Successfully installed patched modules under `/lib/modules/5.15.147-21-a733/updates/dkms/`.
+  - Module vermagic, binary decompression, and SHA256 hashes (`ce9659f4...` and `ba258288...`) verified.
+  - Executed live driver swap (`sudo rmmod aic8800_fdrv` followed by `sudo modprobe aic8800_fdrv_usb`).
+  - Verified 100% preservation of `wlan1` (MT7601U at `10.150.138.121:22`) and active SSH transport throughout the driver swap.
+- **Hardware Monitor Mode Switching**:
+  - Executed `sudo iw dev wlan0 set type monitor` on the physical AIC8800 interface.
+  - Command completed successfully with exit code 0.
+  - `iw dev` confirmed interface status: `type monitor`.
+  - **Original MON_DATA / -EIO Bug: FIXED AND VERIFIED ON REAL HARDWARE**.
+
+### Observations & Future Verification
+- **NetworkManager Persistence**:
+  - Executing `sudo ip link set wlan0 up` caused NetworkManager to restore `wlan0` to managed mode and reconnect to SSID `"ab"`.
+  - Status: `MONITOR MODE PERSISTENCE UNDER NETWORKMANAGER: NOT YET CONFIGURED/VERIFIED`.
+- **Monitor Transmission Logs**:
+  - Observed kernel messages: `monitor xmit: netif_carrier_on`, `wlan0 selects TX queue 65535, but real number of TX queues is 257`, and `rwnx_start_monitor_if_xmit itv`.
+  - Status: `Monitor TX` and `Packet Injection` remain **NOT VERIFIED**.
+
+---
+
 ## [2026-08-22] - Production Fix for AIC8800D80 Monitor Mode & Injection
 
 ### Fixed

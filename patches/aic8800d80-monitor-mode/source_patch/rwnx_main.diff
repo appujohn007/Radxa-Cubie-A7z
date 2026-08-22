@@ -1,5 +1,5 @@
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
-index 0ea16879..1ef7c416 100644
+index 0ea16879..507d9c6b 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
 @@ -63,6 +63,8 @@
@@ -62,7 +62,7 @@ index 0ea16879..1ef7c416 100644
                  wiphy_err(rwnx_hw->wiphy,
                          "Monitor+Data interface support (MON_DATA) disabled\n");
                  return -EIO;
-@@ -3880,18 +3893,19 @@ static int rwnx_cfg80211_set_monitor_channel(struct wiphy *wiphy,
+@@ -3880,18 +3893,22 @@ static int rwnx_cfg80211_set_monitor_channel(struct wiphy *wiphy,
      {
          struct cfg80211_chan_def mon_chandef;
  
@@ -87,10 +87,13 @@ index 0ea16879..1ef7c416 100644
 +            mon_chandef.width = chnl2bw[cfm.chan.type];
 +            rwnx_chanctx_link(rwnx_vif, cfm.chan_index, &mon_chandef);
 +        }
++        #if defined(CONFIG_RWNX_MON_RXFILTER)
++        rwnx_send_set_filter(rwnx_hw, (FIF_BCN_PRBRESP_PROMISC | FIF_OTHER_BSS | FIF_PSPOLL | FIF_PROBE_REQ));
++        #endif
      }
  
      return 0;
-@@ -4374,6 +4388,11 @@ static int rwnx_cfg80211_get_channel(struct wiphy *wiphy,
+@@ -4374,6 +4391,11 @@ static int rwnx_cfg80211_get_channel(struct wiphy *wiphy,
  
      if (rwnx_vif->vif_index == rwnx_hw->monitor_vif)
      {

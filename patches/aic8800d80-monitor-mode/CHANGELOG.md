@@ -2,13 +2,15 @@
 
 All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode and packet injection are documented in this file.
 
-## [2026-08-22] - aic_load_fw Build Update for Linux (/lib/firmware)
+## [2026-08-22] - aic_load_fw Build Fix: RX Buffer Preallocation & Exported Symbols
 
 ### Changed
-- **Firmware Search Path Configuration (`aic_load_fw/Makefile`)**:
-  - Explicitly defined `CONFIG_PLATFORM_UBUNTU = y` and `ccflags-$(CONFIG_PLATFORM_UBUNTU) += -DCONFIG_PLATFORM_UBUNTU` while keeping `CONFIG_USE_FW_REQUEST = n`.
-  - Confirmed `aic_default_fw_path` compiles to `"/lib/firmware"` (constructs `"/lib/firmware/aic8800D80/..."` for AIC8800D80 PID 0x8D80).
-  - Rebuilt `driver/aic_load_fw.ko` (SHA256: `63f5c881a7729f6e88e301e64e3256523d3426a067f61af94f295507e8e2a45e`).
+- **Memory Preallocation Configuration (`aic_load_fw/Makefile`)**:
+  - Set `CONFIG_PREALLOC_RX_SKB ?= y` and `CONFIG_PREALLOC_TXQ ?= y` matching `aic8800_fdrv`.
+  - Restored compilation of `aicwf_rx_prealloc.c` into `aic_load_fw.ko`.
+  - Verified export of all 4 preallocation symbols: `aicwf_rxbuff_size_get`, `aicwf_prealloc_rxbuff_alloc`, `aicwf_prealloc_rxbuff_free`, and `aicwf_prealloc_txq_alloc`.
+  - Maintained `CONFIG_PLATFORM_UBUNTU = y` and `aic_default_fw_path = "/lib/firmware"`.
+  - Rebuilt `driver/aic_load_fw.ko` (SHA256: `ba2582887defecb8dfc57cafcdbe99bb184f9cb47344da1e285d12362dcc1f43`).
 
 ---
 

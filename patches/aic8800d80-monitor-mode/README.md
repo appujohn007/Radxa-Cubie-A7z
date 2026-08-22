@@ -78,7 +78,7 @@ The fix is organized into two minimal, logical layers:
 | **Source Patch** | **VERIFIED** | Direct AST and call-graph verification against `rwnx_main.c`, `rwnx_tx.c`, `rwnx_rx.c` |
 | **Cross-Build** | **VERIFIED** | Built cleanly with `aarch64-linux-gnu-gcc 13.3.0` against Linux `5.15.147-21-a733` |
 | **Module Vermagic** | **VERIFIED** | `5.15.147-21-a733 SMP preempt mod_unload aarch64` (exact match) |
-| **Module SHA256** | **VERIFIED** | `aic8800_fdrv.ko`: `166310576006b73e406c76d535fbc777d0224062afd96fad11fe91015d30068c`<br>`aic_load_fw.ko`: `ba2582887defecb8dfc57cafcdbe99bb184f9cb47344da1e285d12362dcc1f43` |
+| **Module SHA256** | **VERIFIED** | `aic8800_fdrv.ko`: `a7c2538f346e4f5e4281770def8bf1a2017ef4439f91df720972be57ef99bc40`<br>`aic_load_fw.ko`: `ba2582887defecb8dfc57cafcdbe99bb184f9cb47344da1e285d12362dcc1f43` |
 | **Deployment** | **VERIFIED** | Deployed to `/lib/modules/5.15.147-21-a733/updates/dkms/` with `depmod -a` |
 | **Patched Driver Load** | **VERIFIED** | Loaded via `modprobe aic8800_fdrv_usb`; initialized cleanly on physical board |
 | **wlan1/SSH Preservation** | **VERIFIED** | Active SSH over `wlan1` (`10.150.138.121:22` on MT7601U) remained 100% operational |

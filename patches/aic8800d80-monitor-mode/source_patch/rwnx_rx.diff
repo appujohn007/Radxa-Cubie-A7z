@@ -1,5 +1,5 @@
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
-index ff3e8702..852d3df0 100644
+index ff3e8702..197110c5 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
 @@ -1012,13 +1012,17 @@ static void rwnx_rx_add_rtap_hdr(struct rwnx_hw* rwnx_hw,
@@ -29,7 +29,7 @@ index ff3e8702..852d3df0 100644
  
 +        if (!skb_monitor) {
 +            dev_kfree_skb(skb);
-+            goto check_len_update;
++            goto end;
 +        }
 +
          skb_reset_tail_pointer(skb);

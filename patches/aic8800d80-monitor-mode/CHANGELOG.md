@@ -2,15 +2,30 @@
 
 All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode and packet injection are documented in this file.
 
-## [2026-08-01] - Build A (Pure Instrumentation) & Dual Build Architecture Setup
+## [2026-08-22] - Production Fix for AIC8800D80 Monitor Mode & Injection
+
+### Fixed
+- **Interface Change Conflict Check (`rwnx_main.c`)**:
+  - Corrected VIF iteration in `rwnx_cfg80211_change_iface()` to evaluate `vif_el` instead of `vif`.
+  - Excluded `NL80211_IFTYPE_P2P_DEVICE` from the active data interface check, resolving the `-EIO` (`Monitor+Data interface support (MON_DATA) disabled`) failure on `iw dev wlan0 set type monitor`.
+- **Monitor Mode TX Queue Selection (`rwnx_tx.c`)**:
+  - Added `case NL80211_IFTYPE_MONITOR` to `rwnx_select_txq()`, properly assigning `TID_MGT` and mapping to the VIF unknown TX queue (`NX_UNK_TXQ_TYPE`).
+- **Monitor Frame Injection Pipeline (`rwnx_tx.c`, `rwnx_tx.h`)**:
+  - Guarded `iterator.this_arg` against NULL dereference in radiotap iterator loop.
+  - Set `sta = NULL` and used `rwnx_txq_vif_get(vif, NX_UNK_TXQ_TYPE)` directly, eliminating invalid STA table lookups.
+  - Updated `rwnx_start_monitor_if_xmit()` function signature to return `netdev_tx_t`.
+  - Enabled `CONFIG_RWNX_MON_XMIT ?= y` in `Makefile`.
 
 ### Added
-- **Build A Output Directory (`/workspaces/monitor-build-A-instrumentation/`)**:
-  - Pure `MONDBG:` `printk()` logging across all TX, RX, USB completion, and message dispatch paths.
-  - Reverted all previously introduced NULL guards, early returns, skipped paths, and vendor code re-orderings to ensure 100% original vendor control flow.
-  - Generated `aic8800_fdrv.ko`, `git.diff`, `build.log`, `README.md`, and `SHA256SUMS`.
-- **Build B Output Directory (`/workspaces/monitor-build-B-fix/`)**:
-  - Initialized with placeholder `README.md` explaining Build B will be produced after Build A runtime log analysis identifies the exact crashing function.
+- Automated safe deployment script (`deploy/deploy.sh`) with strict `wlan1` / SSH transport protections.
+- Deterministic rollback script (`deploy/rollback.sh`).
+- Packaged production-ready modules: `driver/aic8800_fdrv.ko` and `driver/aic_load_fw.ko`.
+- Comprehensive documentation and verified checksums (`SHA256SUMS`).
+
+---
+
+## [2026-08-01] - Build A / Build B Exploration Setup
+- Diagnostic instrumentation investigation.
 
 ---
 

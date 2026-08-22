@@ -1,8 +1,14 @@
-commit 5236ccb417628bf1b9e00748499dc051d9ccd3b3
-Author: Appu John <161853537+appujohn007@users.noreply.github.com>
-Date:   Sat Aug 22 15:13:40 2026 +0000
+From 5236ccb417628bf1b9e00748499dc051d9ccd3b3 Mon Sep 17 00:00:00 2001
+From: Appu John <161853537+appujohn007@users.noreply.github.com>
+Date: Sat, 22 Aug 2026 15:13:40 +0000
+Subject: [PATCH 2/2] aic8800: make monitor TX queue NULL-safe and enable
+ injection
 
-    aic8800: make monitor TX queue NULL-safe and enable injection
+---
+ .../aic8800/usb/aic8800_fdrv/Makefile         |  2 +-
+ .../aic8800/usb/aic8800_fdrv/rwnx_tx.c        | 42 ++++++++-----------
+ .../aic8800/usb/aic8800_fdrv/rwnx_tx.h        |  2 +-
+ 3 files changed, 20 insertions(+), 26 deletions(-)
 
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/Makefile b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/Makefile
 index d0970cbd..d1068215 100644
@@ -121,3 +127,6 @@ index da4511d6..4c92ffbc 100644
  #endif
  int rwnx_txdatacfm(void *pthis, void *host_id);
  
+-- 
+2.53.0
+

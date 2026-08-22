@@ -1,22 +1,50 @@
-# AIC8800 Driver Dual Build System Reference
+# AIC8800 Driver Build System Reference
 
-## Build Commands
+## Target Environment
+- **Target Kernel**: `5.15.147-21-a733`
+- **Architecture**: `arm64` (`aarch64-linux-gnu-`)
+- **Target Vermagic**: `5.15.147-21-a733 SMP preempt mod_unload aarch64`
+- **Compiler**: `aarch64-linux-gnu-gcc` (Ubuntu 13.3.0)
 
-To compile the driver from the BSP source tree (`/workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/`):
+---
+
+## Build Procedure
+
+The build superproject is located at `/workspaces/linux-a733`.
+
+### 1. Using the Project Module Build Helper (Recommended)
+
+Run from `/workspaces/linux-a733`:
+
+```bash
+cd /workspaces/linux-a733
+./build-module.sh bsp/drivers/net/wireless/aic8800/usb
+```
+
+### 2. Manual Kernel Makefile Invocation
 
 ```bash
 cd /workspaces/linux-a733/src
-make -j4 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=gcc KBUILD_DEFCONFIG=bsp.config M=/workspaces/linux-a733/bsp/drivers/net/wireless/aic8800/usb modules
+LOCALVERSION= make -j$(nproc) \
+    ARCH=arm64 \
+    CROSS_COMPILE=aarch64-linux-gnu- \
+    HOSTCC=gcc \
+    BSP_TOP=bsp/ \
+    LICHEE_KERN_DIR=./ \
+    EXTRA_CFLAGS="-I/workspaces/linux-a733/bsp/drivers/usb/host" \
+    M=bsp/drivers/net/wireless/aic8800/usb \
+    modules
 ```
 
 ---
 
-## Output Packages
+## Build Artifacts
 
-- **Build A (Instrumentation)**:
-  Path: `/workspaces/monitor-build-A-instrumentation/aic8800_fdrv.ko`
-  Contains: Pure `MONDBG:` logging, 100% original vendor logic.
+- **Driver Module**: `bsp/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aic8800_fdrv.ko`
+- **Firmware Loader**: `bsp/drivers/net/wireless/aic8800/usb/aic_load_fw/aic_load_fw.ko`
 
-- **Build B (Fix)**:
-  Path: `/workspaces/monitor-build-B-fix/`
-  Contains: Placeholder `README.md` (Will be built after Build A log analysis).
+### Verification Command
+```bash
+modinfo aic8800_fdrv.ko | grep vermagic
+# Expected: vermagic: 5.15.147-21-a733 SMP preempt mod_unload aarch64
+```

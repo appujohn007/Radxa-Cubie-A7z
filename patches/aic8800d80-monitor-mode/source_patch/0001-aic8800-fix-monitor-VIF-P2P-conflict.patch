@@ -1,8 +1,11 @@
-commit 940d3664409ecf8ddcf3b1fabc2101ab95aa3a86
-Author: Appu John <161853537+appujohn007@users.noreply.github.com>
-Date:   Sat Aug 22 15:13:35 2026 +0000
+From 940d3664409ecf8ddcf3b1fabc2101ab95aa3a86 Mon Sep 17 00:00:00 2001
+From: Appu John <161853537+appujohn007@users.noreply.github.com>
+Date: Sat, 22 Aug 2026 15:13:35 +0000
+Subject: [PATCH 1/2] aic8800: fix monitor VIF P2P conflict
 
-    aic8800: fix monitor VIF P2P conflict
+---
+ .../net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c    | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
 index 0ea16879..31661da8 100644
@@ -25,3 +28,6 @@ index 0ea16879..31661da8 100644
                  wiphy_err(rwnx_hw->wiphy,
                          "Monitor+Data interface support (MON_DATA) disabled\n");
                  return -EIO;
+-- 
+2.53.0
+

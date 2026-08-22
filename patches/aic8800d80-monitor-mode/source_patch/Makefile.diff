@@ -1,0 +1,13 @@
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/Makefile b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/Makefile
+index d1068215..d2072bf1 100644
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/Makefile
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/Makefile
+@@ -145,7 +145,7 @@ CONFIG_RWNX_BCMC ?= y
+ # Enable Monitor+Data interface support (need FW support)
+ CONFIG_RWNX_MON_DATA =n
+ CONFIG_RWNX_MON_XMIT ?= y
+-CONFIG_RWNX_MON_RXFILTER ?= n
++CONFIG_RWNX_MON_RXFILTER ?= y
+ 
+ CONFIG_FILTER_TCP_ACK =y
+ 

@@ -2,6 +2,26 @@
 
 All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode and packet injection are documented in this file.
 
+## [2026-08-22] - aic8800_fdrv: Monitor Mode RX Filter, Channel Context, TX Queue, and NULL Safety Fixes
+
+### Fixed
+- **Monitor Channel Definition & `-105` / `nl80211_send_chandef` Error (`rwnx_main.c`)**:
+  - Initialized a default channel context (Channel 1, 2412 MHz, 20MHz) upon monitor interface open if unconfigured.
+  - In `rwnx_cfg80211_get_channel()`, return existing valid channel context immediately instead of calling `set_monitor_channel(NULL)` (which unlinked and destroyed the channel context).
+  - Resolved `iw dev wlan0 info` `-105` (`-ENOBUFS`) error and eliminated kernel `nl80211_send_chandef` warnings.
+- **Monitor TX Netdev Subqueue Clamping (`rwnx_tx.c`)**:
+  - In `rwnx_select_txq()`, map `NL80211_IFTYPE_MONITOR` to valid subqueue `nx_bcmc_txq_ndev_idx` instead of returning `NDEV_NO_TXQ` (`65535`), resolving `wlan0 selects TX queue 65535, but real number of TX queues is 257`.
+- **ARM64 Kernel NULL Pointer Dereference Prevention (`rwnx_tx.c`, `rwnx_rx.c`)**:
+  - In `rwnx_txdatacfm()`, guarded `cfg80211_mgmt_tx_status()` with `!sw_txhdr->raw_frame` to prevent traversing uninitialized cfg80211 mgmt registrations on raw monitor frames.
+  - In `rwnx_rx_add_rtap_hdr()`, added NULL and array bounds checking for `band` and `rate_idx`.
+  - In `rwnx_rxdataind_aicwf()`, added NULL check on `skb_monitor` after atomic SKB allocation.
+- **Hardware Promiscuous RX Filter (`Makefile`)**:
+  - Enabled `CONFIG_RWNX_MON_RXFILTER = y` so `rwnx_send_set_filter()` configures the LMAC MAC filter for promiscuous / other-BSS reception (`tcpdump` packet capture).
+- **Module Rebuilt**:
+  - `driver/aic8800_fdrv.ko` (SHA256: `166310576006b73e406c76d535fbc777d0224062afd96fad11fe91015d30068c`).
+
+---
+
 ## [2026-08-22] - aic_load_fw Build Fix: RX Buffer Preallocation & Exported Symbols
 
 ### Changed

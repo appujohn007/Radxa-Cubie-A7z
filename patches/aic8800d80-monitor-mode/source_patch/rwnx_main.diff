@@ -1,27 +1,59 @@
-commit 940d3664409ecf8ddcf3b1fabc2101ab95aa3a86
-Author: Appu John <161853537+appujohn007@users.noreply.github.com>
-Date:   Sat Aug 22 15:13:35 2026 +0000
-
-    aic8800: fix monitor VIF P2P conflict
-
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
-index 0ea16879..31661da8 100644
+index 31661da8..88be31dc 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
-@@ -2282,9 +2282,14 @@ static int rwnx_cfg80211_change_iface(struct wiphy *wiphy,
-        (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR)) {
-         struct rwnx_vif *vif_el;
-         list_for_each_entry(vif_el, &rwnx_hw->vifs, list) {
--            // Check if data interface already exists
-+            /*
-+             * Monitor mode is allowed only with no active data VIFs. Ignore
-+             * the monitor VIF itself and the dedicated P2P_DEVICE VIF, which
-+             * is not a data interface and is treated like MONITOR here.
-+             */
-             if ((vif_el != vif) &&
--               (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR)) {
-+               (RWNX_VIF_TYPE(vif_el) != NL80211_IFTYPE_MONITOR) &&
-+               (RWNX_VIF_TYPE(vif_el) != NL80211_IFTYPE_P2P_DEVICE)) {
-                 wiphy_err(rwnx_hw->wiphy,
-                         "Monitor+Data interface support (MON_DATA) disabled\n");
-                 return -EIO;
+@@ -63,6 +63,8 @@
+ #define RW_DRV_COPYRIGHT    "Copyright(c) 2015-2017 RivieraWaves"
+ #define RW_DRV_AUTHOR       "RivieraWaves S.A.S"
+ 
++static int rwnx_cfg80211_set_monitor_channel(struct wiphy *wiphy, struct cfg80211_chan_def *chandef);
++
+ #define RWNX_PRINT_CFM_ERR(req) \
+         printk(KERN_CRIT "%s: Status Error(%d)\n", #req, (&req##_cfm)->status)
+ 
+@@ -1362,21 +1364,27 @@ static int rwnx_open(struct net_device *dev)
+         if (rwnx_vif->ch_index != RWNX_CH_NOT_SET){
+             //Configure the monitor channel
+             error = rwnx_send_config_monitor_req(rwnx_hw, &rwnx_hw->chanctx_table[rwnx_vif->ch_index].chan_def, NULL);
++        } else {
++            struct cfg80211_chan_def default_chandef;
++            memset(&default_chandef, 0, sizeof(default_chandef));
++            default_chandef.chan = ieee80211_get_channel(rwnx_hw->wiphy, 2412);
++            if (default_chandef.chan) {
++                default_chandef.center_freq1 = 2412;
++                default_chandef.center_freq2 = 0;
++                default_chandef.width = NL80211_CHAN_WIDTH_20;
++                rwnx_cfg80211_set_monitor_channel(rwnx_hw->wiphy, &default_chandef);
++            }
+         }
+         #if defined(CONFIG_RWNX_MON_XMIT)
+         rwnx_txq_unk_vif_init(rwnx_vif);
++        netif_carrier_on(dev);
++        AICWFDBG(LOGINFO, "monitor xmit: netif_carrier_on\n");
+         #endif
+         #if defined(CONFIG_RWNX_MON_RXFILTER)
+         rwnx_send_set_filter(rwnx_hw, (FIF_BCN_PRBRESP_PROMISC | FIF_OTHER_BSS | FIF_PSPOLL | FIF_PROBE_REQ));
+         #endif
+     }
+ 
+-    //netif_carrier_off(dev);
+-    #if defined(CONFIG_RWNX_MON_XMIT)
+-    netif_carrier_on(dev);
+-	AICWFDBG(LOGINFO, "monitor xmit: netif_carrier_on\n");
+-    #endif
+-
+ #ifdef CONFIG_BR_SUPPORT
+     netdev_br_init(dev);
+ #endif /* CONFIG_BR_SUPPORT */
+@@ -4379,6 +4387,11 @@ static int rwnx_cfg80211_get_channel(struct wiphy *wiphy,
+ 
+     if (rwnx_vif->vif_index == rwnx_hw->monitor_vif)
+     {
++        if (rwnx_chanctx_valid(rwnx_hw, rwnx_vif->ch_index)) {
++            ctxt = &rwnx_hw->chanctx_table[rwnx_vif->ch_index];
++            *chandef = ctxt->chan_def;
++            return 0;
++        }
+         //retrieve channel from firmware
+         rwnx_cfg80211_set_monitor_channel(wiphy, NULL);
+     }

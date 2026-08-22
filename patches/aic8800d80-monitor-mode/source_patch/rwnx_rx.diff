@@ -1,0 +1,37 @@
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
+index ff3e8702..852d3df0 100644
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_rx.c
+@@ -1012,13 +1012,17 @@ static void rwnx_rx_add_rtap_hdr(struct rwnx_hw* rwnx_hw,
+         aggregation = rxvect->ht.aggregation;
+         *pos = 0;
+     } else {
+-        struct ieee80211_supported_band* band =
+-                rwnx_hw->wiphy->bands[phy_info->phy_band];
++        struct ieee80211_supported_band* band = NULL;
++        if (phy_info->phy_band < NUM_NL80211_BANDS)
++            band = rwnx_hw->wiphy->bands[phy_info->phy_band];
+         rtap->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
+         BUG_ON((rate_idx = legrates_lut[rxvect->leg_rate].idx) == -1);
+         if (phy_info->phy_band == NL80211_BAND_5GHZ)
+             rate_idx -= 4;  /* rwnx_ratetable_5ghz[0].hw_value == 4 */
+-        *pos = DIV_ROUND_UP(band->bitrates[rate_idx].bitrate, 5);
++        if (band && band->bitrates && rate_idx >= 0 && rate_idx < band->n_bitrates)
++            *pos = DIV_ROUND_UP(band->bitrates[rate_idx].bitrate, 5);
++        else
++            *pos = 2; /* fallback 1 Mbps */
+     }
+     pos++;
+ 
+@@ -2149,6 +2153,11 @@ u8 rwnx_rxdataind_aicwf(struct rwnx_hw *rwnx_hw, void *hostid, void *rx_priv)
+         #endif
+         }
+ 
++        if (!skb_monitor) {
++            dev_kfree_skb(skb);
++            goto check_len_update;
++        }
++
+         skb_reset_tail_pointer(skb);
+         skb->len = 0;
+         skb_reset_tail_pointer(skb_monitor);

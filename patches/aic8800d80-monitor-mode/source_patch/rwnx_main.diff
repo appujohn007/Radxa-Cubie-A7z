@@ -1,5 +1,5 @@
 diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
-index 0ea16879..88be31dc 100644
+index 0ea16879..1ef7c416 100644
 --- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
 +++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c
 @@ -63,6 +63,8 @@
@@ -62,7 +62,35 @@ index 0ea16879..88be31dc 100644
                  wiphy_err(rwnx_hw->wiphy,
                          "Monitor+Data interface support (MON_DATA) disabled\n");
                  return -EIO;
-@@ -4374,6 +4387,11 @@ static int rwnx_cfg80211_get_channel(struct wiphy *wiphy,
+@@ -3880,18 +3893,19 @@ static int rwnx_cfg80211_set_monitor_channel(struct wiphy *wiphy,
+     {
+         struct cfg80211_chan_def mon_chandef;
+ 
+-        if (rwnx_hw->vif_started > 1) {
+-            // In this case we just want to update the channel context index not
+-            // the channel configuration
++        if (rwnx_hw->vif_started > 1 && rwnx_hw->chanctx_table[cfm.chan_index].chan_def.chan != NULL) {
+             rwnx_chanctx_link(rwnx_vif, cfm.chan_index, NULL);
+-            return -EBUSY;
++            return 0;
+         }
+ 
++        memset(&mon_chandef, 0, sizeof(mon_chandef));
+         mon_chandef.chan = ieee80211_get_channel(wiphy, cfm.chan.prim20_freq);
+-        mon_chandef.center_freq1 = cfm.chan.center1_freq;
+-        mon_chandef.center_freq2 = cfm.chan.center2_freq;
+-        mon_chandef.width =  chnl2bw[cfm.chan.type];
+-        rwnx_chanctx_link(rwnx_vif, cfm.chan_index, &mon_chandef);
++        if (mon_chandef.chan) {
++            mon_chandef.center_freq1 = cfm.chan.center1_freq;
++            mon_chandef.center_freq2 = cfm.chan.center2_freq;
++            mon_chandef.width = chnl2bw[cfm.chan.type];
++            rwnx_chanctx_link(rwnx_vif, cfm.chan_index, &mon_chandef);
++        }
+     }
+ 
+     return 0;
+@@ -4374,6 +4388,11 @@ static int rwnx_cfg80211_get_channel(struct wiphy *wiphy,
  
      if (rwnx_vif->vif_index == rwnx_hw->monitor_vif)
      {

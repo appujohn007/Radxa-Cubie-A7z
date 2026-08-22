@@ -18,7 +18,7 @@ All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode 
 - **Hardware Promiscuous RX Filter (`Makefile`)**:
   - Enabled `CONFIG_RWNX_MON_RXFILTER = y` so `rwnx_send_set_filter()` configures the LMAC MAC filter for promiscuous / other-BSS reception (`tcpdump` packet capture).
 - **Module Rebuilt**:
-  - `driver/aic8800_fdrv.ko` (SHA256: `a7c2538f346e4f5e4281770def8bf1a2017ef4439f91df720972be57ef99bc40`).
+  - `driver/aic8800_fdrv.ko` (SHA256: `74a6b5bb38106a18924d90212fda3a6a54c9ad2eb6c2145db23043ff866e4d02`).
 
 ---
 

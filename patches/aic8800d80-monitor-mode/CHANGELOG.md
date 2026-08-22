@@ -2,6 +2,16 @@
 
 All notable changes to the AIC8800D80 USB Wi-Fi driver patches for monitor mode and packet injection are documented in this file.
 
+## [2026-08-22] - aic_load_fw Build Update for Linux (/lib/firmware)
+
+### Changed
+- **Firmware Search Path Configuration (`aic_load_fw/Makefile`)**:
+  - Explicitly defined `CONFIG_PLATFORM_UBUNTU = y` and `ccflags-$(CONFIG_PLATFORM_UBUNTU) += -DCONFIG_PLATFORM_UBUNTU` while keeping `CONFIG_USE_FW_REQUEST = n`.
+  - Confirmed `aic_default_fw_path` compiles to `"/lib/firmware"` (constructs `"/lib/firmware/aic8800D80/..."` for AIC8800D80 PID 0x8D80).
+  - Rebuilt `driver/aic_load_fw.ko` (SHA256: `63f5c881a7729f6e88e301e64e3256523d3426a067f61af94f295507e8e2a45e`).
+
+---
+
 ## [2026-08-22] - Real-Hardware Validation on Radxa Cubie A7Z
 
 ### Validated on Real Hardware

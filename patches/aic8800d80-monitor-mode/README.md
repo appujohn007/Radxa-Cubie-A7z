@@ -65,6 +65,10 @@ The fix is organized into two minimal, logical layers:
 - Synchronizes `rwnx_start_monitor_if_xmit()` function signature to return `netdev_tx_t`.
 - Enables `CONFIG_RWNX_MON_XMIT ?= y` in `Makefile`.
 
+### Patch C: Firmware Search Path & Inter-Module Symbol Exports (`aic_load_fw/Makefile`)
+- Explicitly defines `CONFIG_PLATFORM_UBUNTU = y` so that `aic_default_fw_path` compiles to `"/lib/firmware"` (loading from `/lib/firmware/aic8800D80/` on Linux rather than `/vendor/etc/firmware`).
+- Sets `CONFIG_PREALLOC_RX_SKB ?= y` and `CONFIG_PREALLOC_TXQ ?= y` so that `aicwf_rx_prealloc.c` is compiled into `aic_load_fw.ko`, exporting all four symbols (`aicwf_rxbuff_size_get`, `aicwf_prealloc_rxbuff_alloc`, `aicwf_prealloc_rxbuff_free`, and `aicwf_prealloc_txq_alloc`) required by `aic8800_fdrv.ko`.
+
 ---
 
 ## 3. Verification & Validation Status Matrix

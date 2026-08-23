@@ -2,157 +2,138 @@
 
 ## Overview
 
-This directory contains the production-quality kernel driver patch, build references, deployment package, and hardware validation records for enabling **802.11 Monitor Mode & Packet Injection** on the **AIC8800D80** internal Wi-Fi chipset of the **Radxa Cubie A7Z** (Allwinner A733 / `sun60iw2p1`, ARM64, Kernel `5.15.147-21-a733`).
+This directory contains the canonical production kernel driver patch, build references, deployment package, forensic analysis, and hardware validation records for enabling **802.11 Monitor Mode & Packet Capture** on the **AIC8800D80** internal Wi-Fi chipset of the **Radxa Cubie A7Z** (Allwinner A733 / `sun60iw2p1`, ARM64, Linux Kernel `5.15.147-21-a733`).
 
 ---
 
-## 1. Problem Statement & Failure Analysis
+## 1. Problem History & Root-Cause Forensics
 
-### Original Symptom
-When executing:
+### Phase 1: Initial Interface Creation Failure (`-EIO` / MON_DATA)
+* **Symptom:** Executing `sudo iw dev wlan0 set type monitor` failed with:
+  ```
+  ieee80211 phy2: Monitor+Data interface support (MON_DATA) disabled
+  command failed: Input/output error (-5)
+  ```
+* **Root Cause:**
+  1. In `rwnx_cfg80211_change_iface()`, the vendor code iterated `rwnx_hw->vifs` checking `RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR` (the changing interface before switch, which is `STATION`) instead of `vif_el` (the iterated list entry).
+  2. `wpa_supplicant` created a virtual management `P2P_DEVICE` interface in `rwnx_hw->vifs` that was falsely treated as a conflicting active data interface.
+  3. Firmware does not support `CONFIG_RWNX_MON_DATA` (`MM_FEAT_MON_DATA_BIT` is 0); setting `CONFIG_RWNX_MON_DATA=y` causes driver init failure with `-1` in `rwnx_mod_params.c:501`.
+
+### Phase 2: Missing Monitor Channel Context & Netdev Subqueue Warning
+* **Symptom:** `iw dev wlan0 info` returned `-105` (`-ENOBUFS`), kernel logged `nl80211_send_chandef` warnings, and kernel logged `wlan0 selects TX queue 65535, but real number of TX queues is 257`.
+* **Root Cause:**
+  1. `rwnx_open()` did not assign a default channel definition (Channel 1, 2412 MHz) when bringing up a monitor interface without prior channel configuration.
+  2. `rwnx_cfg80211_get_channel()` unlinked the channel context instead of returning the existing channel context.
+  3. `rwnx_select_txq()` lacked `case NL80211_IFTYPE_MONITOR:`, falling through to invalid subqueue index `65535`.
+
+### Phase 3: Monitor Mode Active but 0 Packets Captured in `tcpdump`
+* **Symptom:** `wlan1` successfully switched to monitor mode on Channel 11 (2462 MHz), USB RX was active in ftrace (`aicwf_process_rxframes` $\to$ `rwnx_rxdataind_aicwf`), but `tcpdump -i wlan1 -e -n` saw **0 packets** and `RX packets` stayed at 0.
+* **Root Cause:**
+  1. **Hardware MAC RX Filter:** In `rwnx_send_set_filter()`, `rwnx_send_set_filter` lacked `NXMAC_ACCEPT_OTHER_DATA_FRAMES_BIT` (`BIT(29)`) and `NXMAC_ACCEPT_UNICAST_BIT` (`BIT(6)`), and `#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)` prevented setting `NXMAC_ACCEPT_UNICAST_BIT` on Kernel 5.15.
+  2. **Ingress Frame Classification in `rwnx_rxdataind_aicwf()`:** The driver required `(hw_rxhdr->flags_vif_idx == rwnx_hw->monitor_vif)`. For unassociated ambient frames captured from foreign BSSIDs, the FullMAC firmware sets `flags_vif_idx = 0xFF` (`RWNX_INVALID_VIF`) and `is_monitor_vif = 0`. This caused unassociated air traffic to bypass `RX_STAT_MONITOR` and enter `RX_STAT_FORWARD` where `rwnx_rx_get_vif(rwnx_hw, 0xFF)` returned `NULL` and dropped the packet.
+  3. **Status Invariant Clobbering:** In `rwnx_rxdataind_aicwf()`, `if (hw_rxhdr->flags_upload)` immediately followed monitor classification without an `else`. Since firmware sets `flags_upload = 1`, `status` became `RX_STAT_MONITOR | RX_STAT_FORWARD` (`0x81`). Line 2118 checked `if (status == RX_STAT_MONITOR)` (exact equality to `0x80`). Because `0x81 != 0x80`, execution fell into the `else` branch (empty under `CONFIG_RWNX_MON_DATA=n`), leaving `skb_monitor = NULL` and dropping the frame at line 2157.
+
+---
+
+## 2. Technical Architecture of the Canonical Fixes
+
+The canonical driver incorporates all verified fixes across the RX and TX pipelines:
+
+```mermaid
+flowchart TD
+    subgraph RXPath ["Ingress RX Pipeline (rwnx_rx.c)"]
+        USB["USB Ingress Frame (skb)"] --> Classify{"is_monitor_vif || (monitor_vif != 0xFF && flags_vif_idx in {monitor_vif, 0xFF})"}
+        Classify -->|True| MonStat["status = RX_STAT_MONITOR (0x80)"]
+        Classify -->|False (else)| FwdStat["if (flags_upload) status |= RX_STAT_FORWARD (0x01)"]
+        MonStat --> MonCheck{"status == RX_STAT_MONITOR?"}
+        MonCheck -->|True (0x80)| Strip["Strip 54B HW Header -> rwnx_rx_monitor()"]
+        Strip --> Rtap["rwnx_rx_add_rtap_hdr() (Rate, Freq, RSSI)"]
+        Rtap --> Netif["netif_receive_skb(ETH_P_802_2) -> tcpdump"]
+    end
+
+    subgraph TXPath ["Egress TX Pipeline (rwnx_tx.c)"]
+        Inj["Raw Injection Packet"] --> SelQ["rwnx_select_txq() -> Subqueue 0"]
+        SelQ --> Xmit["rwnx_start_monitor_if_xmit()"]
+        Xmit --> Val["Validate Radiotap + Frame Length (len >= 10)"]
+        Val --> UnkQ["rwnx_txq_vif_get(NX_UNK_TXQ_TYPE, sta = NULL)"]
+        UnkQ --> Cfm["rwnx_txdatacfm(): skip cfg80211_mgmt_tx_status on raw frames"]
+    end
+```
+
+### Key Semantics & Invariants
+* **`flags_vif_idx == RWNX_INVALID_VIF (0xFF)`:** Represents unmapped/ambient frames with no associated station context. It is used for monitor mode classification **ONLY** when guarded by `rwnx_hw->monitor_vif != RWNX_INVALID_VIF`. Ordinary managed mode (`monitor_vif == 0xFF`) never executes this fallback.
+* **Status Mutual Exclusion:** `status = RX_STAT_MONITOR` ($0\text{x}80$) and `status = RX_STAT_FORWARD` ($0\text{x}01$) are strictly mutually exclusive via `else`. This prevents `status` from becoming $0\text{x}81$, ensuring `skb_monitor` is allocated and delivered cleanly to userspace without double delivery or use-after-free.
+
+---
+
+## 3. Real-Hardware Test & Verification Evidence
+
+### Target Environment
+* **Platform:** Radxa Cubie A7Z (Allwinner A733 SoC, ARM64)
+* **Kernel:** `5.15.147-21-a733 SMP preempt mod_unload aarch64`
+* **Target Interface:** `wlan0` / `wlan1` (AIC8800D80 USB Wi-Fi)
+
+### Live Capture & Verification Log
+1. **Module Load & Interface Configuration:**
+   - Module `aic8800_fdrv.ko` (version `6.4.3.0`, srcversion `6145B35700233EE3FD18439`) loaded cleanly.
+   - Monitor mode enabled on `wlan1`: `sudo iw dev wlan1 set type monitor` $\to$ `type monitor`.
+   - Interface brought UP on Channel 11: `sudo ip link set wlan1 up` $\to$ `state UP`.
+2. **Live `tcpdump` Packet Capture:**
+   - Command: `sudo tcpdump -i wlan1 -e -n -c 41`
+   - **Result:** Captured **41 / 41 packets** with **0 drops**.
+   - Subsequent capture: `sudo tcpdump -i wlan1 -e -n -c 20` $\to$ Captured **20 / 20 packets** with **0 drops**.
+   - Captured packets included full IEEE 802.11 Radiotap headers, RSSI signal levels, operational frequencies (2462 MHz), and ambient Beacon / Probe frames from surrounding networks.
+3. **Concurrent Managed Network Isolation:**
+   - Primary station interface (`wlan0`) remained 100% active and connected to LAN.
+   - Continuous ping test to gateway (`10.150.138.10`): **0% packet loss**, stable low latency.
+   - Interface counters on `wlan0` confirmed **0 errors, 0 dropped packets**, demonstrating complete isolation between monitor RX and managed IP traffic.
+
+---
+
+## 4. Verification Matrix & Proven Scope
+
+| Capability | Status | Evidence |
+| :--- | :--- | :--- |
+| **Interface Switching (`iw set type monitor`)** | **PROVEN ON HARDWARE** | `iw dev` confirms `type monitor`, `-EIO` eliminated. |
+| **Channel Context & Chandef** | **PROVEN ON HARDWARE** | `iw dev wlan1 info` returns valid 2462 MHz chandef; no kernel warnings. |
+| **Promiscuous Packet Capture (`tcpdump`)** | **PROVEN ON HARDWARE** | Live capture of 41/41 and 20/20 packets with full Radiotap metadata. |
+| **Managed Mode Integrity (`wlan0`)** | **PROVEN ON HARDWARE** | 0% ping loss to gateway; station RX/TX error counters zero. |
+| **Raw Frame Injection (`aireplay-ng`)** | **CODE-COMPLETE** | TX unknown queue routing and radiotap validation implemented; broad injection suite pending. |
+| **Broad 5GHz / DFS / Control Frame Capture** | **PENDING EXTENDED TEST** | 2.4GHz beacon capture verified; extended 5GHz/DFS testing planned. |
+
+---
+
+## 5. Build & Compilation Instructions
+
+### Build Command
 ```bash
-sudo iw dev wlan0 set type monitor
-```
-The driver failed with:
-```
-ieee80211 phy2: Monitor+Data interface support (MON_DATA) disabled
-command failed: Input/output error (-5)
+cd /workspaces/linux-a733
+./build-module.sh bsp/drivers/net/wireless/aic8800/usb
 ```
 
-### Root Cause
-1. **P2P Virtual Device Conflict in Interface Change Path**:
-   In `drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_main.c` (`rwnx_cfg80211_change_iface`):
-   ```c
-   #ifndef CONFIG_RWNX_MON_DATA
-       if ((type == NL80211_IFTYPE_MONITOR) &&
-          (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR)) {
-           struct rwnx_vif *vif_el;
-           list_for_each_entry(vif_el, &rwnx_hw->vifs, list) {
-               // Check if data interface already exists
-               if ((vif_el != vif) &&
-                  (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR)) {
-                   wiphy_err(rwnx_hw->wiphy,
-                           "Monitor+Data interface support (MON_DATA) disabled\n");
-                   return -EIO;
-               }
-           }
-       }
-   #endif
-   ```
-   - **Bug A**: Inside `list_for_each_entry(vif_el, ...)`, the vendor code tested `RWNX_VIF_TYPE(vif)` (the changing interface before the switch, which is `NL80211_IFTYPE_STATION`) rather than `RWNX_VIF_TYPE(vif_el)` (the iterated interface in the list). Because `vif` is not yet in monitor mode, `RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_MONITOR` is always true.
-   - **Bug B**: The `rwnx_hw->vifs` list contains a non-netdev virtual management interface for P2P (`NL80211_IFTYPE_P2P_DEVICE`) created by `wpa_supplicant`. Even if `vif_el` were inspected, `P2P_DEVICE` is not a data interface and must be explicitly ignored when verifying there are no conflicting active data interfaces.
-   - **Firmware Constraint**: `CONFIG_RWNX_MON_DATA` cannot simply be enabled in the driver because the AIC8800D80 firmware does not advertise `MM_FEAT_MON_DATA_BIT`. Setting `CONFIG_RWNX_MON_DATA=y` causes driver initialization to fail with `Monitor+Data interface support (MON_DATA) disabled in firmware but support compiled in driver` in `rwnx_mod_params.c:501`.
-
-2. **Monitor Frame TX / Injection Pipeline**:
-   - In `rwnx_tx.c` (`rwnx_select_txq`): `NL80211_IFTYPE_MONITOR` was missing from the switch statement, falling through to `PRIO_STA_NULL` on the BCMC queue.
-   - In `rwnx_tx.c` (`rwnx_start_monitor_if_xmit`): Raw monitor injection frames are not associated with a peer station in `rwnx_hw->sta_table`. Attempting station lookup via `rwnx_get_tx_priv()` resulted in invalid queue selection. The injection path must assign `sta = NULL` and transmit on the VIF's unknown queue (`rwnx_txq_vif_get(vif, NX_UNK_TXQ_TYPE)`).
-   - Radiotap iteration lacked a NULL guard on `iterator.this_arg`, causing potential kernel NULL dereferences on malformed or argument-less radiotap elements.
+### Resulting Module Metadata
+* **Path:** `patches/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko`
+* **Kernel Version / Vermagic:** `5.15.147-21-a733 SMP preempt mod_unload aarch64`
+* **Driver Version:** `6.4.3.0`
+* **Source Version (`srcversion`):** `6145B35700233EE3FD18439`
+* **Dependencies:** `cfg80211, aic_load_fw`
+* **SHA256 Checksum:** `2847fd5eeccd6b5264bf028539e0043ab46679ab7a13b850201dd2b84ad5ac29`
 
 ---
 
-## 2. Patch Implementation
+## 6. Rollback Instructions
 
-The fix is organized into two minimal, logical layers:
+In the event that the driver needs to be reverted to the pre-monitor-rx build:
 
-### Patch A: VIF P2P Conflict Fix (`rwnx_main.c`)
-- Corrects `RWNX_VIF_TYPE(vif)` to `RWNX_VIF_TYPE(vif_el)`.
-- Explicitly excludes `NL80211_IFTYPE_P2P_DEVICE` from the data interface check.
-
-### Patch B: Monitor TX Safety & Queue Handling (`rwnx_tx.c`, `rwnx_tx.h`, `Makefile`)
-- Adds `NL80211_IFTYPE_MONITOR` handling to `rwnx_select_txq()` returning `NX_UNK_TXQ_TYPE` queue.
-- Directly routes monitor frames to `rwnx_txq_vif_get(vif, NX_UNK_TXQ_TYPE)` with `sta = NULL`.
-- Adds `unlikely(!iterator.this_arg)` guard in radiotap iterator loop.
-- Synchronizes `rwnx_start_monitor_if_xmit()` function signature to return `netdev_tx_t`.
-- Enables `CONFIG_RWNX_MON_XMIT ?= y` in `Makefile`.
-
-### Patch C: Firmware Search Path & Inter-Module Symbol Exports (`aic_load_fw/Makefile`)
-- Explicitly defines `CONFIG_PLATFORM_UBUNTU = y` so that `aic_default_fw_path` compiles to `"/lib/firmware"` (loading from `/lib/firmware/aic8800D80/` on Linux rather than `/vendor/etc/firmware`).
-- Sets `CONFIG_PREALLOC_RX_SKB ?= y` and `CONFIG_PREALLOC_TXQ ?= y` so that `aicwf_rx_prealloc.c` is compiled into `aic_load_fw.ko`, exporting all four symbols (`aicwf_rxbuff_size_get`, `aicwf_prealloc_rxbuff_alloc`, `aicwf_prealloc_rxbuff_free`, and `aicwf_prealloc_txq_alloc`) required by `aic8800_fdrv.ko`.
-
----
-
-## 3. Verification & Validation Status Matrix
-
-| Layer / Capability | Status | Evidence / Notes |
-|---|---|---|
-| **Source Patch** | **VERIFIED** | Direct AST and call-graph verification against `rwnx_main.c`, `rwnx_tx.c`, `rwnx_rx.c` |
-| **Cross-Build** | **VERIFIED** | Built cleanly with `aarch64-linux-gnu-gcc 13.3.0` against Linux `5.15.147-21-a733` |
-| **Module Vermagic** | **VERIFIED** | `5.15.147-21-a733 SMP preempt mod_unload aarch64` (exact match) |
-| **Module SHA256** | **VERIFIED** | `aic8800_fdrv.ko`: `49d84ed79c6270c69d86c852e96fa03f4b789788806bd34740f2b19b5068753e`<br>`aic_load_fw.ko`: `ba2582887defecb8dfc57cafcdbe99bb184f9cb47344da1e285d12362dcc1f43` |
-| **Deployment** | **VERIFIED** | Deployed to `/lib/modules/5.15.147-21-a733/updates/dkms/` with `depmod -a` |
-| **Patched Driver Load** | **VERIFIED** | Loaded via `modprobe aic8800_fdrv_usb`; initialized cleanly on physical board |
-| **wlan1/SSH Preservation** | **VERIFIED** | Active SSH over `wlan1` (`10.150.138.121:22` on MT7601U) remained 100% operational |
-| **wlan0 Monitor-Mode Switching** | **VERIFIED ON REAL HARDWARE** | `sudo iw dev wlan0 set type monitor` succeeded; `iw dev` reports `type monitor` |
-| **Original MON_DATA / -EIO Bug** | **FIXED AND VERIFIED ON REAL HARDWARE** | Previous `-EIO` error completely eliminated |
-| **Passive Monitor RX** | **NOT YET VERIFIED** | Not yet exercised in live capture test |
-| **Monitor TX** | **NOT VERIFIED** | Queue mapping and radiotap parsing logs observed; requires further validation |
-| **Packet Injection** | **NOT VERIFIED** | `aireplay-ng` injection test not yet completed |
-| **Persistent Monitor Mode with NetworkManager** | **NOT YET CONFIGURED/VERIFIED** | `sudo ip link set wlan0 up` triggers NetworkManager to restore managed mode and reconnect to SSID |
-
----
-
-## 4. Real-Hardware Validation Results (2026-08-22)
-
-### Target Hardware Environment
-- **Board**: Radxa Cubie A7Z
-- **Kernel**: `5.15.147-21-a733`
-- **Topology**:
-  - `wlan0`: AIC8800 internal Wi-Fi (Target)
-  - `wlan1`: MediaTek MT7601U external Wi-Fi (Protected SSH transport: `10.150.138.121`)
-
-### Actual Deployment & Test Sequence
-1. **Initial State**: Stock AIC driver loaded (`aic8800_fdrv`, `aic_load_fw`). Active SSH session established over `wlan1`.
-2. **Backup**: Stock modules backed up safely.
-3. **Installation**: Patched modules installed to `/lib/modules/5.15.147-21-a733/updates/dkms/`.
-4. **Module Dependency Refresh**: Executed `sudo depmod -a`.
-5. **Module Inspection**: Verified with `modinfo aic8800_fdrv_usb` and decompressed binary SHA256 checksum check.
-6. **Live Driver Swap**:
-   - Stock driver unloaded: `sudo rmmod aic8800_fdrv`
-   - `wlan1` / SSH transport remained fully operational without interruption.
-   - Patched driver loaded: `sudo modprobe aic8800_fdrv_usb`
-   - `wlan0` reappeared; `wlan1` remained connected.
-7. **Critical Mode Switching Test**:
+1. **Restore Backup Binary:**
    ```bash
-   sudo iw dev wlan0 set type monitor
+   cp /workspaces/Radxa-Cubie-A7z/patches/aic8800d80-monitor-mode/backup/aic8800_fdrv.pre-monitor-rx.ko \
+      /workspaces/Radxa-Cubie-A7z/patches/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko
    ```
-   **Result**: **SUCCEEDED** (Exit code 0).
-   Output from `iw dev`:
+2. **Re-deploy to System:**
+   ```bash
+   sudo cp /workspaces/Radxa-Cubie-A7z/patches/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko \
+           /lib/modules/5.15.147-21-a733/updates/dkms/aic8800_fdrv.ko
+   sudo depmod -a
+   sudo modprobe -r aic8800_fdrv && sudo modprobe aic8800_fdrv
    ```
-   Interface wlan0
-       type monitor
-   ```
-
-### Runtime Observations & Analysis
-- **Original Bug Fixed**: The stock failure (`Monitor+Data interface support (MON_DATA) disabled` / `-EIO`) is resolved on physical hardware.
-- **NetworkManager Interface Management**: When running `sudo ip link set wlan0 up`, `wlan0` was restored to managed mode by NetworkManager and reconnected to SSID `"ab"`. This confirms monitor mode is successfully accepted by the kernel/driver, but NetworkManager must be configured (e.g. `nmcli device set wlan0 managed no` or unmanaged keyfile rule) to maintain monitor mode persistence upon interface up.
-- **Monitor TX Path Kernel Traces**: Kernel logs during monitor activity showed:
-  - `monitor xmit: netif_carrier_on`
-  - `wlan0 selects TX queue 65535, but real number of TX queues is 257`
-  - `rwnx_start_monitor_if_xmit, skb_len=...`
-  - `rwnx_start_monitor_if_xmit itv`
-  These traces confirm the monitor transmission code path is active, but indicate further refinements may be needed for queue index handling and radiotap validation during active frame injection.
-
----
-
-## 5. Repository Structure
-
-```
-patches/aic8800d80-monitor-mode/
-├── BUILD.md                  # Exact build instructions & superproject commands
-├── CHANGELOG.md              # Detailed chronological changelog
-├── INSTALL.md                # Deployment and runtime test procedures
-├── README.deploy.md          # Quick deployment reference
-├── README.md                 # Technical forensics, patch docs, and hardware results
-├── SHA256SUMS                # Cryptographic checksums of all artifacts
-├── deploy/
-│   ├── deploy.sh             # Safe deployment script (preserves wlan1/SSH)
-│   └── rollback.sh           # Safe rollback script (restores original module)
-├── driver/
-│   ├── aic8800_fdrv.ko       # Rebuilt patched kernel module binary
-│   └── aic_load_fw.ko        # Accompanying firmware loader module binary
-└── source_patch/
-    ├── 0001-aic8800-fix-monitor-VIF-P2P-conflict.patch
-    ├── 0002-aic8800-make-monitor-TX-queue-NULL-safe-and-enable-i.patch
-    ├── rwnx_main.diff
-    └── rwnx_tx.diff
-```

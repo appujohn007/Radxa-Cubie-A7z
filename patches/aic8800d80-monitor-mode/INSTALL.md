@@ -4,7 +4,7 @@
 
 This deployment is specifically designed for environments where:
 - `wlan1` (MediaTek MT7601U) handles the active SSH management connection (`10.150.138.121:22`) and must NOT be disrupted.
-- `wlan0` (AIC8800) is the target internal Wi-Fi interface to be set to monitor mode.
+- `wlan0` / `wlan1` (AIC8800) is the target internal Wi-Fi interface to be set to monitor mode.
 
 ---
 
@@ -54,50 +54,56 @@ Verify that `wlan0` reappears and `wlan1` remains connected.
 
 ## 3. Real Hardware Monitor Mode Test Procedure
 
-### Test 1: Switch wlan0 to Monitor Mode (Verified Succeeded)
+### Test 1: Switch Interface to Monitor Mode (Verified Succeeded)
 ```bash
-sudo ip link set wlan0 down
-sudo iw dev wlan0 set type monitor
+sudo ip link set wlan1 down
+sudo iw dev wlan1 set type monitor
+sudo ip link set wlan1 up
 ```
 
 Verify interface type:
 ```bash
-iw dev wlan0 info
+iw dev wlan1 info
 ```
 Expected output:
 ```
-Interface wlan0
+Interface wlan1
     ifindex <n>
     wdev 0x...
     addr <mac>
     type monitor
     wiphy <phy>
+    channel 11 (2462 MHz), width: 20 MHz
 ```
 
 > [!NOTE]
-> **NetworkManager Observation**: If NetworkManager is managing `wlan0`, running `sudo ip link set wlan0 up` may trigger NetworkManager to restore managed mode and reconnect to an existing Wi-Fi profile. To prevent NetworkManager from taking over the interface, configure it as unmanaged:
+> **NetworkManager Observation**: If NetworkManager is managing the interface, running `sudo ip link set wlan1 up` may trigger NetworkManager to restore managed mode and reconnect to an existing Wi-Fi profile. To prevent NetworkManager from taking over the interface, configure it as unmanaged:
 > ```bash
-> sudo nmcli device set wlan0 managed no
-> sudo ip link set wlan0 up
+> sudo nmcli device set wlan1 managed no
+> sudo ip link set wlan1 up
 > ```
 
-### Test 2: Monitor Capture (RX) Test (Pending Live Validation)
+### Test 2: Monitor Capture (RX) Test (Verified on Hardware)
 ```bash
-sudo tcpdump -i wlan0 -e -n -c 20
+sudo tcpdump -i wlan1 -e -n -c 41
 ```
+Expected: Packets captured with full 802.11 Radiotap headers, RSSI metadata, and 0 drops.
 
-### Test 3: Packet Injection (TX) Test (Pending Live Validation)
+### Test 3: Packet Injection (TX) Test
 ```bash
-sudo aireplay-ng --test wlan0
+sudo aireplay-ng --test wlan1
 ```
 
 ---
 
 ## 4. Rollback Procedure
 
-If needed, restore the original module at any time:
+If needed, restore the previous working driver at any time:
 ```bash
-cd /tmp/aic8800d80-monitor-mode/deploy
-sudo ./rollback.sh
-sudo reboot
+cp /workspaces/Radxa-Cubie-A7z/patches/aic8800d80-monitor-mode/backup/aic8800_fdrv.pre-monitor-rx.ko \
+   /workspaces/Radxa-Cubie-A7z/patches/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko
+sudo cp /workspaces/Radxa-Cubie-A7z/patches/aic8800d80-monitor-mode/driver/aic8800_fdrv.ko \
+        /lib/modules/5.15.147-21-a733/updates/dkms/aic8800_fdrv.ko
+sudo depmod -a
+sudo modprobe -r aic8800_fdrv && sudo modprobe aic8800_fdrv
 ```

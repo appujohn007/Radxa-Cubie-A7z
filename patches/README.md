@@ -9,6 +9,7 @@ This directory houses all hardware driver patches, enhancements, instrumentation
 | Patch Subproject | Target Hardware | Driver Subsystem | Feature Added | Status | Quick Links |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **[`mt7601u-ap-mode/`](mt7601u-ap-mode/)** | MediaTek MT7601U (`148f:7601`) | `mac80211` / `cfg80211` | Access Point (AP / Hotspot) mode with autonomous MAC beaconing & `hostapd` support | **VERIFIED WORKING** | [README](mt7601u-ap-mode/README.md) · [INSTALL](mt7601u-ap-mode/INSTALL.md) · [BUILD](mt7601u-ap-mode/BUILD.md) · [CHANGELOG](mt7601u-ap-mode/CHANGELOG.md) |
+| **[`mt7601u-rxdc-cal-fix/`](mt7601u-rxdc-cal-fix/)** | MediaTek MT7601U (`148f:7601`) | `mt7601u` Driver / BBP | Baseband RX DC calibration timing fix eliminating `-71` / `-110` initialization failures | **VERIFIED WORKING** | [README](mt7601u-rxdc-cal-fix/README.md) · [INSTALL](mt7601u-rxdc-cal-fix/INSTALL.md) · [STATUS](mt7601u-rxdc-cal-fix/STATUS.md) |
 | **[`aic8800d80-monitor-mode/`](aic8800d80-monitor-mode/)** | AIC8800D80 USB Wi-Fi | Allwinner BSP | Monitor mode & frame injection instrumentation / debug tracing | **TESTING / READY** | [README](aic8800d80-monitor-mode/README.md) · [INSTALL](aic8800d80-monitor-mode/INSTALL.md) · [BUILD](aic8800d80-monitor-mode/BUILD.md) · [CHANGELOG](aic8800d80-monitor-mode/CHANGELOG.md) |
 
 ---

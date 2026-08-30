@@ -1,0 +1,2 @@
+388b8f87a6379495875d8b24e7f1171e07fbc6d8a50d2d2ab7b9d6d82b1e007e  driver/mt7601u.ko
+217487be31ee769c703df50db802be46f5992d00b747a9681b919aec2d5716cd  source_patch/0001-mt7601u-extend-rxdc-cal-convergence-timeout.patch

@@ -1,0 +1,15 @@
+diff --git a/drivers/net/wireless/mediatek/mt7601u/phy.c b/drivers/net/wireless/mediatek/mt7601u/phy.c
+index 8a00f6a75..17b1683af 100644
+--- a/drivers/net/wireless/mediatek/mt7601u/phy.c
++++ b/drivers/net/wireless/mediatek/mt7601u/phy.c
+@@ -564,8 +564,8 @@ static void mt7601u_rxdc_cal(struct mt7601u_dev *dev)
+ 	if (ret)
+ 		dev_err(dev->dev, "%s intro failed:%d\n", __func__, ret);
+ 
+-	for (i = 20; i; i--) {
+-		usleep_range(300, 500);
++	for (i = 100; i; i--) {
++		usleep_range(500, 800);
+ 
+ 		mt7601u_bbp_wr(dev, 158, 0x8c);
+ 		if (mt7601u_bbp_rr(dev, 159) == 0x0c)

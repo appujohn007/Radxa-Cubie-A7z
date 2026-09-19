@@ -1,0 +1,81 @@
+#!/bin/sh
+set -eu
+
+# The onboard AIC is identified by its fixed physical USB path.
+is_aic() {
+    iface="$1"
+
+    [ -e "/sys/class/net/$iface/device" ] || return 1
+
+    path=$(readlink -f "/sys/class/net/$iface/device" 2>/dev/null || true)
+
+    case "$path" in
+        */4200000.ehci1-controller/usb4/4-1)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Find all normal wlan interfaces.
+ifs=""
+
+for d in /sys/class/net/wlan*; do
+    [ -e "$d" ] || continue
+
+    n=${d##*/}
+
+    case "$n" in
+        wlan[0-9]*)
+            ifs="$ifs $n"
+            ;;
+    esac
+done
+
+[ -n "$ifs" ] || exit 0
+
+# First move everything to temporary names.
+# This prevents wlan0/wlan1/etc. collisions during rearrangement.
+pid=$$
+
+i=0
+temps=""
+
+for n in $ifs; do
+    t="wlanx${pid}_${i}"
+
+    ip link set dev "$n" name "$t"
+
+    temps="$temps $t"
+    i=$((i + 1))
+done
+
+# Separate AIC from all other adapters.
+aic=""
+others=""
+
+for t in $temps; do
+    if is_aic "$t"; then
+        aic="$t"
+    else
+        others="$others $t"
+    fi
+done
+
+# AIC always owns wlan0.
+if [ -n "$aic" ]; then
+    ip link set dev "$aic" name wlan0
+fi
+
+# Every non-AIC adapter starts at wlan1.
+slot=1
+
+for t in $others; do
+    ip link set dev "$t" name "wlan$slot"
+    slot=$((slot + 1))
+done
+
+exit 0
+

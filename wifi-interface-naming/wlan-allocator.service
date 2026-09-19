@@ -1,0 +1,14 @@
+[Unit]
+Description=Reserve wlan0 for onboard AIC and allocate other Wi-Fi interfaces
+Wants=systemd-udev-settle.service
+After=systemd-udev-settle.service
+Before=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/wlan-allocator
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+

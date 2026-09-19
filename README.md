@@ -51,11 +51,14 @@ Radxa-Cubie-A7z/
 │   ├── BUILD.md                    <- Master kernel build system architecture, symbols & troubleshooting guide
 │   └── AI_HANDOFF.md               <- Self-contained project memory for future AI sessions & developers
 │
-├── 🌐 Wi-Fi Interface Naming & Hardware Reservation (`wifi-interface-naming/`)
-│   ├── README.md                   <- Architecture, hardware path analysis, and verification results
-│   ├── INSTALL.md                  <- Deployment runbook and systemd service activation
-│   ├── wlan-allocator              <- Standalone shell allocator (two-phase collision-free renamer)
-│   └── wlan-allocator.service      <- Systemd oneshot unit (runs before NetworkManager)
+├── 🛠️ System Modifications & Tweaks (`mods/`)
+│   ├── README.md                   <- Mods catalog index & layout guidelines
+│   │
+│   └── 🌐 wifi-interface-naming/   <- Wi-Fi Interface Naming & Hardware Reservation
+│       ├── README.md               <- Architecture, hardware path analysis, and verification results
+│       ├── INSTALL.md              <- Deployment runbook and systemd service activation
+│       ├── wlan-allocator          <- Standalone shell allocator (two-phase collision-free renamer)
+│       └── wlan-allocator.service  <- Systemd oneshot unit (runs before NetworkManager)
 │
 └── 🧩 Patches & Driver Subprojects (`patches/`)
     ├── README.md                   <- Patch catalog index, feature matrix & patch application workflow
@@ -99,13 +102,13 @@ All driver-specific instructions, deployment procedures, and precompiled binarie
 
 ---
 
-## 🌐 System Services & Network Configurations
+## 🛠️ System Modifications & Configurations (`mods/`)
 
-Specialized system services and scripts managing deterministic hardware initialization and network stack integration:
+Specialized system modifications, allocator daemons, and scripts managing deterministic hardware initialization and network stack integration:
 
 | Subproject Directory | Purpose | Key Mechanism | Status | Direct Links |
 | :--- | :--- | :--- | :--- | :--- |
-| **[`wifi-interface-naming/`](wifi-interface-naming/)** | Deterministic `wlan0` reservation for onboard AIC & sequential `wlan1+` allocation | Path-based inspection (`4200000.ehci1-controller`) + two-phase collision-free renamer + NetworkManager MAC binding | **VERIFIED WORKING** | [README](wifi-interface-naming/README.md) · [INSTALL](wifi-interface-naming/INSTALL.md) · [SCRIPT](wifi-interface-naming/wlan-allocator) · [SERVICE](wifi-interface-naming/wlan-allocator.service) |
+| **[`mods/wifi-interface-naming/`](mods/wifi-interface-naming/)** | Deterministic `wlan0` reservation for onboard AIC & sequential `wlan1+` allocation | Path-based inspection (`4200000.ehci1-controller`) + two-phase collision-free renamer + NetworkManager MAC binding | **VERIFIED WORKING** | [README](mods/wifi-interface-naming/README.md) · [INSTALL](mods/wifi-interface-naming/INSTALL.md) · [SCRIPT](mods/wifi-interface-naming/wlan-allocator) · [SERVICE](mods/wifi-interface-naming/wlan-allocator.service) |
 
 ---
 
@@ -113,9 +116,10 @@ Specialized system services and scripts managing deterministic hardware initiali
 
 | File | Primary Focus | Key Contents |
 | :--- | :--- | :--- |
-| [`README.md`](README.md) | **General Landing Page** | Platform specs, repository mission, architecture tree, patch catalog, and network service directory. |
-| [`wifi-interface-naming/README.md`](wifi-interface-naming/README.md) | **Deterministic Wi-Fi Naming** | Hardware paths, vendor `.link` limitations, two-phase allocator architecture, and verified boot test results. |
-| [`wifi-interface-naming/INSTALL.md`](wifi-interface-naming/INSTALL.md) | **Wi-Fi Naming Runbook** | Deployment commands for allocator script, systemd service enablement, and NetworkManager MAC binding. |
+| [`README.md`](README.md) | **General Landing Page** | Platform specs, repository mission, architecture tree, patch catalog, and mods directory. |
+| [`mods/README.md`](mods/README.md) | **System Modifications Catalog** | Overview and folder structure of system services, daemon allocators, and board mods. |
+| [`mods/wifi-interface-naming/README.md`](mods/wifi-interface-naming/README.md) | **Deterministic Wi-Fi Naming** | Hardware paths, vendor `.link` limitations, two-phase allocator architecture, and verified boot test results. |
+| [`mods/wifi-interface-naming/INSTALL.md`](mods/wifi-interface-naming/INSTALL.md) | **Wi-Fi Naming Runbook** | Deployment commands for allocator script, systemd service enablement, and NetworkManager MAC binding. |
 | [`BUILD.md`](BUILD.md) | **Build Architecture** | Reusable `build-module.sh` mechanics, symbol table (`Module.symvers`) generation, and 9-point troubleshooting guide. |
 | [`AI_HANDOFF.md`](AI_HANDOFF.md) | **AI Continuity Blueprint** | Full historical timeline, driver architecture breakdown, known limitations, open questions, and next experiment steps. |
 | [`project-state.yaml`](project-state.yaml) | **Machine-Readable State** | Structured YAML tracking board parameters, kernel configs, verified features, unverified items, and SHA256 sums. |

@@ -47,7 +47,9 @@ The development environment consists of two peer repositories in `/workspaces`:
 │   │   │   ├── README.md           <- Subproject overview
 │   │   │   └── INSTALL.md          <- Target installation steps
 │   │   └── aic8800d80-monitor-mode/<- AIC8800 Wi-Fi monitor mode experiment files
-│   ├── wifi-interface-naming/      <- Deterministic Wi-Fi naming & AIC wlan0 reservation subproject
+│   ├── mods/                       <- Board modifications, runtime allocators & system tweaks
+│   │   ├── README.md               <- Modifications index
+│   │   └── wifi-interface-naming/  <- Deterministic Wi-Fi naming & AIC wlan0 reservation
 │   ├── extracted/                  <- Extracted raw partitions from stock Radxa OS image
 │   └── rootfs/                     <- Mounted/extracted reference root filesystem
 │
